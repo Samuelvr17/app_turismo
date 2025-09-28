@@ -7,9 +7,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'models/report.dart';
 import 'models/safe_route.dart';
 import 'models/user_preferences.dart';
+import 'models/weather_data.dart';
 import 'services/local_storage_service.dart';
 import 'services/location_service.dart';
 import 'services/safe_route_local_data_source.dart';
+import 'services/weather_service.dart';
+import 'widgets/weather_card.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -637,21 +640,130 @@ class SafeRouteMapView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _SafeRouteMapViewWithWeather(
+      routeName: routeName,
+      target: target,
+    );
+  }
+}
+
+class _SafeRouteMapViewWithWeather extends StatefulWidget {
+  const _SafeRouteMapViewWithWeather({
+    required this.routeName,
+    required this.target,
+  });
+
+  final String routeName;
+  final LatLng target;
+
+  @override
+  State<_SafeRouteMapViewWithWeather> createState() => _SafeRouteMapViewWithWeatherState();
+}
+
+class _SafeRouteMapViewWithWeatherState extends State<_SafeRouteMapViewWithWeather> {
+  final WeatherService _weatherService = WeatherService.instance;
+  WeatherData? _weatherData;
+  bool _isLoadingWeather = true;
+  String? _weatherError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeatherData();
+  }
+
+  Future<void> _loadWeatherData() async {
+    try {
+      final weatherData = await _weatherService.getWeatherByCoordinates(
+        latitude: widget.target.latitude,
+        longitude: widget.target.longitude,
+      );
+
+      if (mounted) {
+        setState(() {
+          _weatherData = weatherData;
+          _isLoadingWeather = false;
+          _weatherError = weatherData == null ? 'No se pudo obtener información del clima' : null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoadingWeather = false;
+          _weatherError = 'Error al cargar el clima: $error';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(routeName),
+        title: Text(widget.routeName),
       ),
-      body: GoogleMap(
-        initialCameraPosition: CameraPosition(target: target, zoom: 16),
-        markers: <Marker>{
-          Marker(
-            markerId: MarkerId(routeName),
-            position: target,
-            infoWindow: InfoWindow(title: routeName),
+      body: Column(
+        children: [
+          // Weather information
+          if (_isLoadingWeather)
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Text('Cargando información del clima...'),
+                ],
+              ),
+            )
+          else if (_weatherData != null)
+            WeatherCard(weatherData: _weatherData!)
+          else if (_weatherError != null)
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _weatherError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Map
+          Expanded(
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(target: widget.target, zoom: 16),
+              markers: <Marker>{
+                Marker(
+                  markerId: MarkerId(widget.routeName),
+                  position: widget.target,
+                  infoWindow: InfoWindow(title: widget.routeName),
+                ),
+              },
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+            ),
           ),
-        },
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
+        ],
       ),
     );
   }
