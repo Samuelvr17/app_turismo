@@ -45,13 +45,13 @@ class WeatherData {
     );
   }
 
-  String get temperatureFormatted => '${temperature.round()}°C';
-  String get feelsLikeFormatted => '${feelsLike.round()}°C';
-  String get windSpeedFormatted => '${windSpeed.toStringAsFixed(1)} m/s';
+  String get temperatureFormatted => '${temperature.toStringAsFixed(1)}°C';
+  String get feelsLikeFormatted => '${feelsLike.toStringAsFixed(1)}°C';
+  String get windSpeedFormatted => '${windSpeed.toStringAsFixed(2)} m/s';
   String get humidityFormatted => '$humidity%';
   String get pressureFormatted => '$pressure hPa';
   String get windDirectionFormatted => '${windDirection}°';
-  String get windGustFormatted => '${windGust.toStringAsFixed(1)} m/s';
+  String get windGustFormatted => '${windGust.toStringAsFixed(2)} m/s';
   String get visibilityFormatted => '${(visibility / 1000).toStringAsFixed(1)} km';
   
   String get windDirectionCardinal {
