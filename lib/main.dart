@@ -665,14 +665,55 @@ class _SafeRouteMapViewWithWeatherState extends State<_SafeRouteMapViewWithWeath
   WeatherData? _weatherData;
   bool _isLoadingWeather = true;
   String? _weatherError;
+  late final VoidCallback _weatherListener;
 
   @override
   void initState() {
     super.initState();
-    _loadWeatherData();
+    
+    _weatherListener = () {
+      if (mounted) {
+        setState(() {
+          _weatherData = _weatherService.currentWeather;
+          _isLoadingWeather = false;
+          _weatherError = _weatherData == null ? 'No se pudo obtener información del clima' : null;
+        });
+      }
+    };
+    
+    _weatherService.weatherListenable.addListener(_weatherListener);
+    _startWeatherUpdates();
+  }
+  
+  @override
+  void dispose() {
+    _weatherService.weatherListenable.removeListener(_weatherListener);
+    _weatherService.stopAutoUpdate();
+    super.dispose();
   }
 
-  Future<void> _loadWeatherData() async {
+  void _startWeatherUpdates() {
+    // Iniciar actualización automática del clima
+    _weatherService.startAutoUpdate(
+      latitude: widget.target.latitude,
+      longitude: widget.target.longitude,
+    );
+    
+    // Si ya hay datos disponibles, usarlos inmediatamente
+    final currentWeather = _weatherService.currentWeather;
+    if (currentWeather != null) {
+      setState(() {
+        _weatherData = currentWeather;
+        _isLoadingWeather = false;
+        _weatherError = null;
+      });
+    } else {
+      // Si no hay datos, cargar manualmente la primera vez
+      _loadWeatherDataManually();
+    }
+  }
+  
+  Future<void> _loadWeatherDataManually() async {
     try {
       final weatherData = await _weatherService.getWeatherByCoordinates(
         latitude: widget.target.latitude,

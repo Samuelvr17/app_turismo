@@ -36,6 +36,19 @@ class WeatherCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const Spacer(),
+                Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: theme.colorScheme.outline,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Actualiza cada 12 min',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -107,6 +120,32 @@ class WeatherCard extends StatelessWidget {
                     icon: Icons.speed,
                     label: 'Presión',
                     value: weatherData.pressureFormatted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _WeatherDetail(
+                    icon: Icons.explore,
+                    label: 'Dirección',
+                    value: '${weatherData.windDirectionCardinal} (${weatherData.windDirectionFormatted})',
+                  ),
+                ),
+                Expanded(
+                  child: _WeatherDetail(
+                    icon: Icons.air,
+                    label: 'Ráfagas',
+                    value: weatherData.windGustFormatted,
+                  ),
+                ),
+                Expanded(
+                  child: _WeatherDetail(
+                    icon: Icons.visibility,
+                    label: 'Visibilidad',
+                    value: weatherData.visibilityFormatted,
                   ),
                 ),
               ],
