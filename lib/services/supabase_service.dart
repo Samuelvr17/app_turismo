@@ -46,6 +46,7 @@ class SupabaseService implements ReportsRemoteDataSource {
   }
 
   Future<Report> saveReport({
+    required String userId,
     required ReportType type,
     required String description,
     double? latitude,
@@ -56,6 +57,7 @@ class SupabaseService implements ReportsRemoteDataSource {
       'description': description,
       'latitude': latitude,
       'longitude': longitude,
+      'user_id': userId,
     };
 
     final response = await client
@@ -78,10 +80,11 @@ class SupabaseService implements ReportsRemoteDataSource {
     );
   }
 
-  Future<List<Report>> getReports() async {
+  Future<List<Report>> getReports({required String userId}) async {
     final response = await client
         .from('reports')
         .select()
+        .eq('user_id', userId)
         .order('created_at', ascending: false);
 
     return (response as List<dynamic>)
@@ -96,23 +99,37 @@ class SupabaseService implements ReportsRemoteDataSource {
         .toList();
   }
 
-  Future<void> deleteReport(String id) async {
-    await client.from('reports').delete().eq('id', id);
+  Future<void> deleteReport({
+    required String id,
+    required String userId,
+  }) async {
+    await client
+        .from('reports')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
   }
 
-  Future<void> saveUserPreferences(UserPreferences preferences) async {
+  Future<void> saveUserPreferences({
+    required String userId,
+    required UserPreferences preferences,
+  }) async {
     final Map<String, dynamic> data = {
+      'user_id': userId,
       'preferred_report_type_id': preferences.preferredReportTypeId,
       'share_location': preferences.shareLocation,
     };
 
-    await client.from('user_preferences').upsert(data);
+    await client
+        .from('user_preferences')
+        .upsert(data, onConflict: 'user_id');
   }
 
-  Future<UserPreferences?> getUserPreferences() async {
+  Future<UserPreferences?> getUserPreferences({required String userId}) async {
     final response = await client
         .from('user_preferences')
         .select()
+        .eq('user_id', userId)
         .maybeSingle();
 
     if (response == null) {
@@ -125,20 +142,31 @@ class SupabaseService implements ReportsRemoteDataSource {
     );
   }
 
-  Future<void> saveSafeRoutes(List<SafeRoute> routes) async {
-    final List<Map<String, dynamic>> data = routes.map((route) => {
-      'name': route.name,
-      'duration': route.duration,
-      'difficulty': route.difficulty,
-      'description': route.description,
-      'points_of_interest': route.pointsOfInterest,
-    }).toList();
+  Future<void> saveSafeRoutes({
+    required String userId,
+    required List<SafeRoute> routes,
+  }) async {
+    final List<Map<String, dynamic>> data = routes
+        .map((route) => {
+              'user_id': userId,
+              'name': route.name,
+              'duration': route.duration,
+              'difficulty': route.difficulty,
+              'description': route.description,
+              'points_of_interest': route.pointsOfInterest,
+            })
+        .toList();
 
-    await client.from('safe_routes').upsert(data);
+    await client
+        .from('safe_routes')
+        .upsert(data, onConflict: 'user_id,name');
   }
 
-  Future<List<SafeRoute>> getSafeRoutes() async {
-    final response = await client.from('safe_routes').select();
+  Future<List<SafeRoute>> getSafeRoutes({required String userId}) async {
+    final response = await client
+        .from('safe_routes')
+        .select()
+        .eq('user_id', userId);
 
     return (response as List<dynamic>)
         .map((item) => SafeRoute(
