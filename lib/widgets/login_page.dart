@@ -178,9 +178,6 @@ class _LoginPageState extends State<LoginPage> {
                                 prefixIcon: Icon(Icons.lock_reset),
                               ),
                               validator: (String? value) {
-                                if (_isLoginMode) {
-                                  return null;
-                                }
                                 if (value == null || value.isEmpty) {
                                   return 'Confirma tu contraseña';
                                 }
