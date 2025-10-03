@@ -50,7 +50,7 @@ class WeatherData {
   String get windSpeedFormatted => '${windSpeed.toStringAsFixed(2)} m/s';
   String get humidityFormatted => '$humidity%';
   String get pressureFormatted => '$pressure hPa';
-  String get windDirectionFormatted => '${windDirection}°';
+  String get windDirectionFormatted => '$windDirection°';
   String get windGustFormatted => '${windGust.toStringAsFixed(2)} m/s';
   String get visibilityFormatted => '${(visibility / 1000).toStringAsFixed(1)} km';
   

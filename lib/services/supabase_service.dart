@@ -44,6 +44,7 @@ class SupabaseService implements ReportsRemoteDataSource {
     _isInitialized = true;
   }
 
+  @override
   Future<Report> saveReport({
     required String userId,
     required ReportType type,
@@ -79,6 +80,7 @@ class SupabaseService implements ReportsRemoteDataSource {
     );
   }
 
+  @override
   Future<List<Report>> getReports({required String userId}) async {
     final response = await client
         .from('reports')
@@ -98,6 +100,7 @@ class SupabaseService implements ReportsRemoteDataSource {
         .toList();
   }
 
+  @override
   Future<void> deleteReport({
     required String id,
     required String userId,
@@ -109,6 +112,7 @@ class SupabaseService implements ReportsRemoteDataSource {
         .eq('user_id', userId);
   }
 
+  @override
   Future<void> saveUserPreferences({
     required String userId,
     required UserPreferences preferences,
@@ -124,6 +128,7 @@ class SupabaseService implements ReportsRemoteDataSource {
         .upsert(data, onConflict: 'user_id');
   }
 
+  @override
   Future<UserPreferences?> getUserPreferences({required String userId}) async {
     final response = await client
         .from('user_preferences')
@@ -141,6 +146,7 @@ class SupabaseService implements ReportsRemoteDataSource {
     );
   }
 
+  @override
   Future<void> saveSafeRoutes({
     required String userId,
     required List<SafeRoute> routes,
@@ -161,6 +167,7 @@ class SupabaseService implements ReportsRemoteDataSource {
         .upsert(data, onConflict: 'user_id,name');
   }
 
+  @override
   Future<List<SafeRoute>> getSafeRoutes({required String userId}) async {
     final response = await client
         .from('safe_routes')
