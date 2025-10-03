@@ -1110,6 +1110,8 @@ class _ReportesPageState extends State<ReportesPage> {
               });
 
               if (value != null) {
+                final ScaffoldMessengerState messenger =
+                    ScaffoldMessenger.of(context);
                 final UserPreferences currentPreferences =
                     _storageService.preferences.copyWith(
                   preferredReportTypeId: value.id,
@@ -1120,7 +1122,7 @@ class _ReportesPageState extends State<ReportesPage> {
                       if (!mounted) {
                         return;
                       }
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
                             'No se pudieron sincronizar las preferencias: $error',
@@ -1173,6 +1175,8 @@ class _ReportesPageState extends State<ReportesPage> {
                 _shareLocation = value;
               });
 
+              final ScaffoldMessengerState messenger =
+                  ScaffoldMessenger.of(context);
               final UserPreferences currentPreferences =
                   _storageService.preferences.copyWith(
                 shareLocation: value,
@@ -1183,7 +1187,7 @@ class _ReportesPageState extends State<ReportesPage> {
                     if (!mounted) {
                       return;
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text(
                           'No se pudieron sincronizar las preferencias: $error',
