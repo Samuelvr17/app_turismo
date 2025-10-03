@@ -83,15 +83,18 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  const String testUserId = 'test-user';
   final LocalStorageService localStorage = LocalStorageService.instance;
 
   setUpAll(() async {
     SharedPreferences.setMockInitialValues(<String, Object?>{});
     await localStorage.initialize();
+    await localStorage.configureForUser(testUserId);
   });
 
   setUp(() async {
     SharedPreferences.setMockInitialValues(<String, Object?>{});
+    await localStorage.configureForUser(testUserId);
     await localStorage.clearCachedReports();
   });
 
@@ -118,7 +121,7 @@ void main() {
       supabase: supabase,
     );
 
-    await storage.initialize();
+    await storage.initializeForUser(testUserId);
     expect(storage.reports.length, 1);
     expect(storage.reports.first.id, remoteReport.id);
 
@@ -151,7 +154,7 @@ void main() {
       supabase: supabase,
     );
 
-    await storage.initialize();
+    await storage.initializeForUser(testUserId);
     expect(storage.reports.length, 2);
 
     supabase.setReports(<Report>[secondReport]);
