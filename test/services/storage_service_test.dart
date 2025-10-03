@@ -87,13 +87,13 @@ void main() {
   final LocalStorageService localStorage = LocalStorageService.instance;
 
   setUpAll(() async {
-    SharedPreferences.setMockInitialValues(<String, Object?>{});
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await localStorage.initialize();
     await localStorage.configureForUser(testUserId);
   });
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues(<String, Object?>{});
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await localStorage.configureForUser(testUserId);
     await localStorage.clearCachedReports();
   });
