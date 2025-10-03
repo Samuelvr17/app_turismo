@@ -14,13 +14,15 @@ alter table app_users enable row level security;
 
 -- Políticas abiertas para poder registrar y validar usuarios desde el cliente.
 -- Ajusta estas políticas cuando integres un esquema de autenticación más estricto.
-create policy if not exists "anon_can_select_app_users"
+drop policy if exists "anon_can_select_app_users" on app_users;
+create policy "anon_can_select_app_users"
   on app_users
   for select
   to anon, authenticated
   using (true);
 
-create policy if not exists "anon_can_insert_app_users"
+drop policy if exists "anon_can_insert_app_users" on app_users;
+create policy "anon_can_insert_app_users"
   on app_users
   for insert
   to anon, authenticated
