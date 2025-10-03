@@ -1085,7 +1085,7 @@ class _ReportesPageState extends State<ReportesPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<ReportType>(
-            value: _selectedType,
+            initialValue: _selectedType,
             decoration: const InputDecoration(
               labelText: 'Tipo de reporte',
               border: OutlineInputBorder(),
