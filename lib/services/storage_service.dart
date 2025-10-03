@@ -4,15 +4,20 @@ import '../models/report.dart';
 import '../models/safe_route.dart';
 import '../models/user_preferences.dart';
 import 'local_storage_service.dart';
+import 'reports_remote_data_source.dart';
 import 'supabase_service.dart';
 
 class StorageService {
-  StorageService._();
+  StorageService({
+    LocalStorageService? localStorage,
+    ReportsRemoteDataSource? supabase,
+  })  : _localStorage = localStorage ?? LocalStorageService.instance,
+        _supabase = supabase ?? SupabaseService.instance;
 
-  static final StorageService instance = StorageService._();
+  static final StorageService instance = StorageService();
 
-  final LocalStorageService _localStorage = LocalStorageService.instance;
-  final SupabaseService _supabase = SupabaseService.instance;
+  final LocalStorageService _localStorage;
+  final ReportsRemoteDataSource _supabase;
 
   bool _isInitialized = false;
 
@@ -24,7 +29,7 @@ class StorageService {
     await _localStorage.initialize();
 
     await Future.wait<void>(<Future<void>>[
-      _hydrateReportsFromSupabase(),
+      _syncReportsFromSupabase(),
       _hydratePreferencesFromSupabase(),
       _hydrateSafeRoutesFromSupabase(),
     ]);
@@ -32,13 +37,22 @@ class StorageService {
     _isInitialized = true;
   }
 
-  Future<void> _hydrateReportsFromSupabase() async {
+  Future<void> _syncReportsFromSupabase() async {
     try {
       final List<Report> supabaseReports = await _supabase.getReports();
-      await _localStorage.cacheReports(supabaseReports);
+      await _localStorage.clearCachedReports();
+      for (final Report report in supabaseReports) {
+        await _localStorage.saveReport(report: report);
+      }
     } catch (e) {
       debugPrint('Error al sincronizar reportes desde Supabase: $e');
     }
+  }
+
+  @visibleForTesting
+  Future<void> syncReportsFromSupabase() async {
+    await _ensureInitialized();
+    await _syncReportsFromSupabase();
   }
 
   Future<void> _hydratePreferencesFromSupabase() async {
@@ -92,7 +106,7 @@ class StorageService {
       longitude: longitude,
     );
 
-    await _localStorage.cacheReport(report);
+    await _localStorage.saveReport(report: report);
     return report;
   }
 
