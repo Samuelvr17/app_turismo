@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -95,33 +94,33 @@ class LocalStorageService {
 
   UserPreferences get preferences => _preferencesNotifier.value;
 
-  Future<Report> saveReport({
-    required ReportType type,
-    required String description,
-    double? latitude,
-    double? longitude,
-  }) async {
+  Future<void> cacheReports(List<Report> reports) async {
     await _ensureInitialized();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
-      throw StateError('Reports storage has not been initialized');
+      return;
     }
 
-    final Report report = Report(
-      id: _generateId(),
-      typeId: type.id,
-      description: description,
-      createdAt: DateTime.now(),
-      latitude: latitude,
-      longitude: longitude,
-    );
+    await box.clear();
+    for (final Report report in reports) {
+      await box.put(report.id, report.toJson());
+    }
+
+    await _loadStoredReports();
+  }
+
+  Future<void> cacheReport(Report report) async {
+    await _ensureInitialized();
+    final Box<Map<String, dynamic>>? box = _reportsBox;
+    if (box == null) {
+      return;
+    }
 
     await box.put(report.id, report.toJson());
     await _loadStoredReports();
-    return report;
   }
 
-  Future<void> deleteReport(String id) async {
+  Future<void> removeCachedReport(String id) async {
     await _ensureInitialized();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
@@ -132,7 +131,7 @@ class LocalStorageService {
     await _loadStoredReports();
   }
 
-  Future<void> clearReports() async {
+  Future<void> clearCachedReports() async {
     await _ensureInitialized();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
@@ -143,7 +142,7 @@ class LocalStorageService {
     await _loadStoredReports();
   }
 
-  Future<void> saveUserPreferences(UserPreferences preferences) async {
+  Future<void> cacheUserPreferences(UserPreferences preferences) async {
     await _ensureInitialized();
     final SharedPreferences? prefs = _preferences;
     if (prefs == null) {
@@ -155,7 +154,7 @@ class LocalStorageService {
     _preferencesNotifier.value = preferences;
   }
 
-  Future<List<SafeRoute>> loadSafeRoutes() async {
+  Future<List<SafeRoute>> loadCachedSafeRoutes() async {
     await _ensureInitialized();
     final SharedPreferences? prefs = _preferences;
     if (prefs == null) {
@@ -183,7 +182,7 @@ class LocalStorageService {
     }
   }
 
-  Future<void> saveSafeRoutes(List<SafeRoute> routes) async {
+  Future<void> cacheSafeRoutes(List<SafeRoute> routes) async {
     await _ensureInitialized();
     final SharedPreferences? prefs = _preferences;
     if (prefs == null) {
@@ -195,11 +194,5 @@ class LocalStorageService {
         .toList(growable: false);
     final String encoded = json.encode(serializedRoutes);
     await prefs.setString(_safeRoutesKey, encoded);
-  }
-
-  String _generateId() {
-    final int timestamp = DateTime.now().millisecondsSinceEpoch;
-    final int randomSuffix = Random().nextInt(9999);
-    return '$timestamp-$randomSuffix';
   }
 }

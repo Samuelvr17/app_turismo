@@ -1,11 +1,11 @@
 import '../models/safe_route.dart';
-import 'local_storage_service.dart';
+import 'storage_service.dart';
 
 class SafeRouteLocalDataSource {
-  SafeRouteLocalDataSource({LocalStorageService? storage})
-      : _storage = storage ?? LocalStorageService.instance;
+  SafeRouteLocalDataSource({StorageService? storage})
+      : _storage = storage ?? StorageService.instance;
 
-  final LocalStorageService _storage;
+  final StorageService _storage;
 
   Future<List<SafeRoute>> loadRoutes() => _storage.loadSafeRoutes();
 

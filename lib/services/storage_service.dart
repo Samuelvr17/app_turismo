@@ -14,11 +14,6 @@ class StorageService {
   final LocalStorageService _localStorage = LocalStorageService.instance;
   final SupabaseService _supabase = SupabaseService.instance;
 
-  final ValueNotifier<List<Report>> _reportsNotifier =
-      ValueNotifier<List<Report>>(<Report>[]);
-  final ValueNotifier<UserPreferences> _preferencesNotifier =
-      ValueNotifier<UserPreferences>(UserPreferences.defaults);
-
   bool _isInitialized = false;
 
   Future<void> initialize() async {
@@ -26,60 +21,61 @@ class StorageService {
       return;
     }
 
-    await _syncReportsFromSupabase();
-    await _syncPreferencesFromSupabase();
+    await _localStorage.initialize();
 
-    _localStorage.reportsListenable.addListener(() {
-      _reportsNotifier.value = _localStorage.reports;
-    });
-
-    _localStorage.preferencesListenable.addListener(() {
-      _preferencesNotifier.value = _localStorage.preferences;
-    });
-
-    _reportsNotifier.value = _localStorage.reports;
-    _preferencesNotifier.value = _localStorage.preferences;
+    await Future.wait<void>(<Future<void>>[
+      _hydrateReportsFromSupabase(),
+      _hydratePreferencesFromSupabase(),
+      _hydrateSafeRoutesFromSupabase(),
+    ]);
 
     _isInitialized = true;
   }
 
-  Future<void> _syncReportsFromSupabase() async {
+  Future<void> _hydrateReportsFromSupabase() async {
     try {
-      final supabaseReports = await _supabase.getReports();
-
-      for (final report in supabaseReports) {
-        final reportType = ReportType.fromId(report.typeId);
-        await _localStorage.saveReport(
-          type: reportType,
-          description: report.description,
-          latitude: report.latitude,
-          longitude: report.longitude,
-        );
-      }
+      final List<Report> supabaseReports = await _supabase.getReports();
+      await _localStorage.cacheReports(supabaseReports);
     } catch (e) {
       debugPrint('Error al sincronizar reportes desde Supabase: $e');
     }
   }
 
-  Future<void> _syncPreferencesFromSupabase() async {
+  Future<void> _hydratePreferencesFromSupabase() async {
     try {
-      final preferences = await _supabase.getUserPreferences();
+      final UserPreferences? preferences = await _supabase.getUserPreferences();
       if (preferences != null) {
-        await _localStorage.saveUserPreferences(preferences);
+        await _localStorage.cacheUserPreferences(preferences);
       }
     } catch (e) {
       debugPrint('Error al sincronizar preferencias desde Supabase: $e');
     }
   }
 
-  ValueListenable<List<Report>> get reportsListenable => _reportsNotifier;
+  Future<void> _hydrateSafeRoutesFromSupabase() async {
+    try {
+      final List<SafeRoute> routes = await _supabase.getSafeRoutes();
+      await _localStorage.cacheSafeRoutes(routes);
+    } catch (e) {
+      debugPrint('Error al sincronizar rutas seguras desde Supabase: $e');
+    }
+  }
 
-  List<Report> get reports => _reportsNotifier.value;
+  ValueListenable<List<Report>> get reportsListenable =>
+      _localStorage.reportsListenable;
+
+  List<Report> get reports => _localStorage.reports;
 
   ValueListenable<UserPreferences> get preferencesListenable =>
-      _preferencesNotifier;
+      _localStorage.preferencesListenable;
 
-  UserPreferences get preferences => _preferencesNotifier.value;
+  UserPreferences get preferences => _localStorage.preferences;
+
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+  }
 
   Future<Report> saveReport({
     required ReportType type,
@@ -87,79 +83,56 @@ class StorageService {
     double? latitude,
     double? longitude,
   }) async {
-    try {
-      final report = await _supabase.saveReport(
-        type: type,
-        description: description,
-        latitude: latitude,
-        longitude: longitude,
-      );
+    await _ensureInitialized();
 
-      await _localStorage.saveReport(
-        type: type,
-        description: description,
-        latitude: latitude,
-        longitude: longitude,
-      );
+    final Report report = await _supabase.saveReport(
+      type: type,
+      description: description,
+      latitude: latitude,
+      longitude: longitude,
+    );
 
-      return report;
-    } catch (e) {
-      debugPrint('Error al guardar en Supabase, guardando solo localmente: $e');
-
-      return await _localStorage.saveReport(
-        type: type,
-        description: description,
-        latitude: latitude,
-        longitude: longitude,
-      );
-    }
+    await _localStorage.cacheReport(report);
+    return report;
   }
 
   Future<void> deleteReport(String id) async {
-    try {
-      await _supabase.deleteReport(id);
-    } catch (e) {
-      debugPrint('Error al eliminar de Supabase: $e');
-    }
+    await _ensureInitialized();
 
-    await _localStorage.deleteReport(id);
+    await _supabase.deleteReport(id);
+    await _localStorage.removeCachedReport(id);
   }
 
-  Future<void> clearReports() async {
-    await _localStorage.clearReports();
+  Future<void> clearReportsCache() async {
+    await _ensureInitialized();
+    await _localStorage.clearCachedReports();
   }
 
   Future<void> saveUserPreferences(UserPreferences preferences) async {
-    try {
-      await _supabase.saveUserPreferences(preferences);
-    } catch (e) {
-      debugPrint('Error al guardar preferencias en Supabase: $e');
-    }
+    await _ensureInitialized();
 
-    await _localStorage.saveUserPreferences(preferences);
+    await _supabase.saveUserPreferences(preferences);
+    await _localStorage.cacheUserPreferences(preferences);
   }
 
   Future<List<SafeRoute>> loadSafeRoutes() async {
+    await _ensureInitialized();
+
     try {
-      final routes = await _supabase.getSafeRoutes();
-      if (routes.isNotEmpty) {
-        await _localStorage.saveSafeRoutes(routes);
-        return routes;
-      }
+      final List<SafeRoute> routes = await _supabase.getSafeRoutes();
+      await _localStorage.cacheSafeRoutes(routes);
+      return routes;
     } catch (e) {
       debugPrint('Error al cargar rutas desde Supabase: $e');
     }
 
-    return await _localStorage.loadSafeRoutes();
+    return _localStorage.loadCachedSafeRoutes();
   }
 
   Future<void> saveSafeRoutes(List<SafeRoute> routes) async {
-    try {
-      await _supabase.saveSafeRoutes(routes);
-    } catch (e) {
-      debugPrint('Error al guardar rutas en Supabase: $e');
-    }
+    await _ensureInitialized();
 
-    await _localStorage.saveSafeRoutes(routes);
+    await _supabase.saveSafeRoutes(routes);
+    await _localStorage.cacheSafeRoutes(routes);
   }
 }

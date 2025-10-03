@@ -9,11 +9,11 @@ import 'models/report.dart';
 import 'models/safe_route.dart';
 import 'models/user_preferences.dart';
 import 'models/weather_data.dart';
-import 'services/local_storage_service.dart';
 import 'services/location_service.dart';
 import 'services/safe_route_local_data_source.dart';
 import 'services/weather_service.dart';
 import 'services/supabase_service.dart';
+import 'services/storage_service.dart';
 import 'widgets/weather_card.dart';
 
 Future<void> main() async {
@@ -22,7 +22,7 @@ Future<void> main() async {
   await dotenv.load(fileName: '.env');
 
   await SupabaseService.instance.initialize();
-  await LocalStorageService.instance.initialize();
+  await StorageService.instance.initialize();
 
   runApp(const MyApp());
 }
@@ -507,16 +507,40 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
   }
 
   Future<void> _initializeRoutes() async {
-    await _localDataSource.saveRoutes(_defaultRoutes);
+    try {
+      final List<SafeRoute> routes = await _localDataSource.loadRoutes();
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      if (routes.isEmpty) {
+        await _localDataSource.saveRoutes(_defaultRoutes);
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _routes = _defaultRoutes;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _routes = routes;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _routes = _defaultRoutes;
+        _isLoading = false;
+      });
     }
-
-    setState(() {
-      _routes = _defaultRoutes;
-      _isLoading = false;
-    });
   }
 
   Future<void> _openRouteOnMap(SafeRoute route) async {
@@ -827,7 +851,7 @@ class ReportesPage extends StatefulWidget {
 class _ReportesPageState extends State<ReportesPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
-  final LocalStorageService _storageService = LocalStorageService.instance;
+  final StorageService _storageService = StorageService.instance;
   final LocationService _locationService = LocationService.instance;
 
   late final VoidCallback _preferencesListener;
@@ -954,7 +978,20 @@ class _ReportesPageState extends State<ReportesPage> {
                   preferredReportTypeId: value.id,
                 );
                 unawaited(
-                  _storageService.saveUserPreferences(currentPreferences),
+                  _storageService.saveUserPreferences(currentPreferences).catchError(
+                    (Object error) {
+                      if (!mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'No se pudieron sincronizar las preferencias: $error',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               }
             },
@@ -1004,7 +1041,20 @@ class _ReportesPageState extends State<ReportesPage> {
                 shareLocation: value,
               );
               unawaited(
-                _storageService.saveUserPreferences(currentPreferences),
+                _storageService.saveUserPreferences(currentPreferences).catchError(
+                  (Object error) {
+                    if (!mounted) {
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'No se pudieron sincronizar las preferencias: $error',
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -1098,12 +1148,12 @@ class _ReportesPageState extends State<ReportesPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Reportes guardados',
+            'Reportes sincronizados',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'Aún no has registrado reportes. Completa el formulario para guardar el primero.',
+            'Aún no has registrado reportes en la nube. Completa el formulario para crear el primero.',
             style: theme.textTheme.bodyMedium,
           ),
         ],
@@ -1114,7 +1164,7 @@ class _ReportesPageState extends State<ReportesPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'Reportes guardados',
+          'Reportes sincronizados',
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
@@ -1256,13 +1306,13 @@ class _ReportesPageState extends State<ReportesPage> {
 
       _descriptionController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reporte guardado en el dispositivo.')),
+        const SnackBar(content: Text('Reporte sincronizado en la nube.')),
       );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No se pudo guardar el reporte: $error'),
+            content: Text('No se pudo sincronizar el reporte: $error'),
           ),
         );
       }
@@ -1282,14 +1332,14 @@ class _ReportesPageState extends State<ReportesPage> {
       await _storageService.deleteReport(report.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reporte eliminado.')),
+          const SnackBar(content: Text('Reporte eliminado de la nube.')),
         );
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No se pudo eliminar el reporte: $error'),
+            content: Text('No se pudo eliminar el reporte remoto: $error'),
           ),
         );
       }
