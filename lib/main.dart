@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'models/app_user.dart';
 import 'models/report.dart';
 import 'models/safe_route.dart';
 import 'models/user_preferences.dart';
@@ -14,6 +15,8 @@ import 'services/safe_route_local_data_source.dart';
 import 'services/weather_service.dart';
 import 'services/supabase_service.dart';
 import 'services/storage_service.dart';
+import 'services/auth_service.dart';
+import 'widgets/login_page.dart';
 import 'widgets/weather_card.dart';
 
 Future<void> main() async {
@@ -22,7 +25,7 @@ Future<void> main() async {
   await dotenv.load(fileName: '.env');
 
   await SupabaseService.instance.initialize();
-  await StorageService.instance.initialize();
+  await AuthService.instance.initialize();
 
   runApp(const MyApp());
 }
@@ -39,13 +42,139 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: const MainScaffold(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  final AuthService _authService = AuthService.instance;
+  AppUser? _lastUser;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AppUser?>(
+      valueListenable: _authService.currentUserListenable,
+      builder: (BuildContext context, AppUser? user, _) {
+        if (user == null) {
+          if (_lastUser != null) {
+            _lastUser = null;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              unawaited(StorageService.instance.clearForSignOut());
+            });
+          }
+          return const LoginPage();
+        }
+
+        if (_lastUser?.id != user.id) {
+          _lastUser = user;
+        }
+
+        return AuthenticatedApp(user: user);
+      },
+    );
+  }
+}
+
+class AuthenticatedApp extends StatefulWidget {
+  const AuthenticatedApp({
+    super.key,
+    required this.user,
+  });
+
+  final AppUser user;
+
+  @override
+  State<AuthenticatedApp> createState() => _AuthenticatedAppState();
+}
+
+class _AuthenticatedAppState extends State<AuthenticatedApp> {
+  late Future<void> _initialization;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialization =
+        StorageService.instance.initializeForUser(widget.user.id);
+  }
+
+  @override
+  void didUpdateWidget(covariant AuthenticatedApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.id != widget.user.id) {
+      setState(() {
+        _initialization =
+            StorageService.instance.initializeForUser(widget.user.id);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _initialization,
+      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No se pudieron cargar tus datos. Intenta nuevamente.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _initialization = StorageService.instance
+                              .initializeForUser(widget.user.id);
+                        });
+                      },
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return MainScaffold(
+          onLogout: AuthService.instance.logout,
+        );
+      },
     );
   }
 }
 
 class MainScaffold extends StatefulWidget {
-  const MainScaffold({super.key});
+  const MainScaffold({
+    super.key,
+    this.onLogout,
+  });
+
+  final VoidCallback? onLogout;
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
@@ -110,6 +239,14 @@ class _MainScaffoldState extends State<MainScaffold> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(currentTab.label),
+        actions: <Widget>[
+          if (widget.onLogout != null)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Cerrar sesión',
+              onPressed: widget.onLogout,
+            ),
+        ],
       ),
       body: PageStorage(
         bucket: _pageStorageBucket,

@@ -13,11 +13,12 @@ class LocalStorageService {
 
   static final LocalStorageService instance = LocalStorageService._();
 
-  static const String _reportsBoxName = 'reports_box';
+  static const String _reportsBoxNamePrefix = 'reports_box';
   static const String _preferencesKey = 'user_preferences';
   static const String _safeRoutesKey = 'safe_routes_cache';
 
-  bool _isInitialized = false;
+  bool _baseInitialized = false;
+  String? _currentUserId;
   SharedPreferences? _preferences;
   Box<Map<String, dynamic>>? _reportsBox;
 
@@ -27,24 +28,32 @@ class LocalStorageService {
       ValueNotifier<UserPreferences>(UserPreferences.defaults);
 
   Future<void> initialize() async {
-    if (_isInitialized) {
+    if (_baseInitialized) {
       return;
     }
 
     await Hive.initFlutter();
-    _reportsBox = await Hive.openBox<Map<String, dynamic>>(_reportsBoxName);
     _preferences = await SharedPreferences.getInstance();
+    _baseInitialized = true;
+  }
+
+  Future<void> configureForUser(String userId) async {
+    await initialize();
+
+    if (_currentUserId == userId && _reportsBox != null) {
+      await _loadStoredReports();
+      await _loadStoredPreferences();
+      return;
+    }
+
+    _currentUserId = userId;
+    await _reportsBox?.close();
+    _reportsBox = await Hive.openBox<Map<String, dynamic>>(
+      _reportsBoxNameForUser(userId),
+    );
 
     await _loadStoredReports();
     await _loadStoredPreferences();
-
-    _isInitialized = true;
-  }
-
-  Future<void> _ensureInitialized() async {
-    if (!_isInitialized) {
-      await initialize();
-    }
   }
 
   Future<void> _loadStoredReports() async {
@@ -65,11 +74,13 @@ class LocalStorageService {
 
   Future<void> _loadStoredPreferences() async {
     final SharedPreferences? preferences = _preferences;
-    if (preferences == null) {
+    final String? userId = _currentUserId;
+    if (preferences == null || userId == null) {
       return;
     }
 
-    final String? raw = preferences.getString(_preferencesKey);
+    final String? raw =
+        preferences.getString(_preferencesStorageKey(userId));
     if (raw == null || raw.isEmpty) {
       _preferencesNotifier.value = UserPreferences.defaults;
       return;
@@ -95,7 +106,7 @@ class LocalStorageService {
   UserPreferences get preferences => _preferencesNotifier.value;
 
   Future<void> cacheReports(List<Report> reports) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
       return;
@@ -118,7 +129,7 @@ class LocalStorageService {
     String? id,
     DateTime? createdAt,
   }) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
       throw StateError('Reports box is not initialized');
@@ -159,7 +170,7 @@ class LocalStorageService {
   }
 
   Future<void> cacheReport(Report report) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
       return;
@@ -170,7 +181,7 @@ class LocalStorageService {
   }
 
   Future<void> removeCachedReport(String id) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
       return;
@@ -181,7 +192,7 @@ class LocalStorageService {
   }
 
   Future<void> clearCachedReports() async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final Box<Map<String, dynamic>>? box = _reportsBox;
     if (box == null) {
       return;
@@ -192,25 +203,27 @@ class LocalStorageService {
   }
 
   Future<void> cacheUserPreferences(UserPreferences preferences) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final SharedPreferences? prefs = _preferences;
-    if (prefs == null) {
+    final String? userId = _currentUserId;
+    if (prefs == null || userId == null) {
       return;
     }
 
     final String encoded = json.encode(preferences.toJson());
-    await prefs.setString(_preferencesKey, encoded);
+    await prefs.setString(_preferencesStorageKey(userId), encoded);
     _preferencesNotifier.value = preferences;
   }
 
   Future<List<SafeRoute>> loadCachedSafeRoutes() async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final SharedPreferences? prefs = _preferences;
-    if (prefs == null) {
+    final String? userId = _currentUserId;
+    if (prefs == null || userId == null) {
       return <SafeRoute>[];
     }
 
-    final String? raw = prefs.getString(_safeRoutesKey);
+    final String? raw = prefs.getString(_safeRoutesStorageKey(userId));
     if (raw == null || raw.isEmpty) {
       return <SafeRoute>[];
     }
@@ -232,9 +245,10 @@ class LocalStorageService {
   }
 
   Future<void> cacheSafeRoutes(List<SafeRoute> routes) async {
-    await _ensureInitialized();
+    await _ensureConfigured();
     final SharedPreferences? prefs = _preferences;
-    if (prefs == null) {
+    final String? userId = _currentUserId;
+    if (prefs == null || userId == null) {
       return;
     }
 
@@ -242,6 +256,30 @@ class LocalStorageService {
         .map((SafeRoute route) => route.toJson())
         .toList(growable: false);
     final String encoded = json.encode(serializedRoutes);
-    await prefs.setString(_safeRoutesKey, encoded);
+    await prefs.setString(_safeRoutesStorageKey(userId), encoded);
   }
+
+  Future<void> clearForSignOut() async {
+    await _reportsBox?.close();
+    _reportsBox = null;
+    _currentUserId = null;
+    _reportsNotifier.value = <Report>[];
+    _preferencesNotifier.value = UserPreferences.defaults;
+  }
+
+  Future<void> _ensureConfigured() async {
+    if (!_baseInitialized) {
+      await initialize();
+    }
+    if (_currentUserId == null) {
+      throw StateError('No hay un usuario autenticado configurado.');
+    }
+  }
+
+  String _reportsBoxNameForUser(String userId) =>
+      '${_reportsBoxNamePrefix}_$userId';
+
+  String _preferencesStorageKey(String userId) => '${userId}_$_preferencesKey';
+
+  String _safeRoutesStorageKey(String userId) => '${userId}_$_safeRoutesKey';
 }
