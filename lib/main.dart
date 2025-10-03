@@ -1263,7 +1263,8 @@ class _ReportesPageState extends State<ReportesPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withAlpha((0.6 * 255).round()),
+        color: colorScheme.surfaceContainerHighest
+            .withAlpha((0.6 * 255).round()),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
