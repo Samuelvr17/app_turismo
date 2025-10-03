@@ -65,10 +65,12 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } on AuthenticationException catch (error) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = error.message;
       });
     } catch (error) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Ocurrió un error inesperado. Inténtalo de nuevo.';
       });
