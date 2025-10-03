@@ -57,8 +57,6 @@ class AuthService {
         _currentUserNotifier.value = AppUser.fromJson(decoded);
       } on FormatException {
         await _preferences?.remove(_sessionKey);
-      } on TypeError {
-        await _preferences?.remove(_sessionKey);
       }
     }
 
