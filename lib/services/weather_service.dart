@@ -95,7 +95,7 @@ class WeatherService {
 
       final response = await http.get(uri).timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw TimeoutException('Request timeout', 10 as Duration?),
+        onTimeout: () => throw TimeoutException('Request timeout', const Duration(seconds: 10)),
       );
 
       if (response.statusCode == 200) {
