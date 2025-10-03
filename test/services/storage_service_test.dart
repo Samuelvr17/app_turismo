@@ -21,27 +21,31 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
   }
 
   @override
-  Future<void> deleteReport(String id) async {
+  Future<void> deleteReport({
+    required String id,
+    required String userId,
+  }) async {
     _reports.removeWhere((Report report) => report.id == id);
   }
 
   @override
-  Future<List<Report>> getReports() async {
+  Future<List<Report>> getReports({required String userId}) async {
     return List<Report>.from(_reports);
   }
 
   @override
-  Future<List<SafeRoute>> getSafeRoutes() async {
+  Future<List<SafeRoute>> getSafeRoutes({required String userId}) async {
     return List<SafeRoute>.from(_routes);
   }
 
   @override
-  Future<UserPreferences?> getUserPreferences() async {
+  Future<UserPreferences?> getUserPreferences({required String userId}) async {
     return _preferences;
   }
 
   @override
   Future<Report> saveReport({
+    required String userId,
     required ReportType type,
     required String description,
     double? latitude,
@@ -60,12 +64,18 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
   }
 
   @override
-  Future<void> saveSafeRoutes(List<SafeRoute> routes) async {
+  Future<void> saveSafeRoutes({
+    required String userId,
+    required List<SafeRoute> routes,
+  }) async {
     _routes = List<SafeRoute>.from(routes);
   }
 
   @override
-  Future<void> saveUserPreferences(UserPreferences preferences) async {
+  Future<void> saveUserPreferences({
+    required String userId,
+    required UserPreferences preferences,
+  }) async {
     _preferences = preferences;
   }
 }
