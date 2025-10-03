@@ -109,6 +109,55 @@ class LocalStorageService {
     await _loadStoredReports();
   }
 
+  Future<Report> saveReport({
+    Report? report,
+    ReportType? type,
+    String? description,
+    double? latitude,
+    double? longitude,
+    String? id,
+    DateTime? createdAt,
+  }) async {
+    await _ensureInitialized();
+    final Box<Map<String, dynamic>>? box = _reportsBox;
+    if (box == null) {
+      throw StateError('Reports box is not initialized');
+    }
+
+    Report reportToSave;
+    if (report != null) {
+      reportToSave = report;
+    } else {
+      if (type == null) {
+        throw ArgumentError(
+          'type is required when report is not provided',
+        );
+      }
+      if (description == null) {
+        throw ArgumentError(
+          'description is required when report is not provided',
+        );
+      }
+
+      final String resolvedId = id ??
+          DateTime.now().microsecondsSinceEpoch.toString();
+      final DateTime resolvedCreatedAt = createdAt ?? DateTime.now();
+
+      reportToSave = Report(
+        id: resolvedId,
+        typeId: type.id,
+        description: description,
+        createdAt: resolvedCreatedAt,
+        latitude: latitude,
+        longitude: longitude,
+      );
+    }
+
+    await box.put(reportToSave.id, reportToSave.toJson());
+    await _loadStoredReports();
+    return reportToSave;
+  }
+
   Future<void> cacheReport(Report report) async {
     await _ensureInitialized();
     final Box<Map<String, dynamic>>? box = _reportsBox;

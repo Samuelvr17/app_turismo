@@ -5,8 +5,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/report.dart';
 import '../models/safe_route.dart';
 import '../models/user_preferences.dart';
+import 'reports_remote_data_source.dart';
 
-class SupabaseService {
+class SupabaseService implements ReportsRemoteDataSource {
   SupabaseService._();
 
   static final SupabaseService instance = SupabaseService._();
