@@ -120,9 +120,7 @@ class AuthService {
       if (error.code == '23505') {
         throw AuthenticationException('El correo ya se encuentra registrado.');
       }
-      throw AuthenticationException(
-        error.message ?? 'Ocurrió un error al registrar la cuenta.',
-      );
+      throw AuthenticationException(error.message);
     }
   }
 
