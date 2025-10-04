@@ -168,8 +168,7 @@ void main() {
   });
 
   test('_loadStoredReports ignores invalid cached entries', () async {
-    final Box<Map<String, dynamic>> box =
-        Hive.box<Map<String, dynamic>>('reports_box_$testUserId');
+    final Box<dynamic> box = Hive.box<dynamic>('reports_box_$testUserId');
     await box.clear();
 
     final Report validReport = Report(
@@ -192,5 +191,26 @@ void main() {
     final List<Report> reports = localStorage.reports;
     expect(reports.length, 1);
     expect(reports.first.id, validReport.id);
+  });
+
+  test('_loadStoredReports converts dynamic map entries without throwing',
+      () async {
+    final Box<dynamic> box = Hive.box<dynamic>('reports_box_$testUserId');
+    await box.clear();
+
+    await box.put('dynamic-report', <dynamic, dynamic>{
+      'id': 'dynamic-report',
+      'typeId': ReportType.security.id,
+      'description': 'Dynamic map entry',
+      'createdAt': DateTime(2024, 6, 1).toIso8601String(),
+      'latitude': 12,
+      'longitude': -8,
+    });
+
+    await localStorage.configureForUser(testUserId);
+
+    final List<Report> reports = localStorage.reports;
+    expect(reports.length, 1);
+    expect(reports.first.id, 'dynamic-report');
   });
 }

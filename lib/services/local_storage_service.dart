@@ -20,7 +20,7 @@ class LocalStorageService {
   bool _baseInitialized = false;
   String? _currentUserId;
   SharedPreferences? _preferences;
-  Box<Map<String, dynamic>>? _reportsBox;
+  Box<dynamic>? _reportsBox;
 
   final ValueNotifier<List<Report>> _reportsNotifier =
       ValueNotifier<List<Report>>(<Report>[]);
@@ -48,7 +48,7 @@ class LocalStorageService {
 
     _currentUserId = userId;
     await _reportsBox?.close();
-    _reportsBox = await Hive.openBox<Map<String, dynamic>>(
+    _reportsBox = await Hive.openBox<dynamic>(
       _reportsBoxNameForUser(userId),
     );
 
@@ -57,7 +57,7 @@ class LocalStorageService {
   }
 
   Future<void> _loadStoredReports() async {
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       return;
     }
@@ -65,13 +65,15 @@ class LocalStorageService {
     final List<Report> reports = <Report>[];
 
     for (final dynamic key in box.keys) {
-      final Map<String, dynamic>? raw = box.get(key);
+      final dynamic raw = box.get(key);
       if (raw == null) {
         continue;
       }
 
       try {
-        reports.add(Report.fromJson(raw));
+        final Map<String, dynamic> serialized =
+            Map<String, dynamic>.from(raw as Map<dynamic, dynamic>);
+        reports.add(Report.fromJson(serialized));
       } on FormatException catch (error, stackTrace) {
         debugPrint('Error al cargar reporte "$key": $error');
         debugPrint('$stackTrace');
@@ -125,7 +127,7 @@ class LocalStorageService {
 
   Future<void> cacheReports(List<Report> reports) async {
     await _ensureConfigured();
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       return;
     }
@@ -148,7 +150,7 @@ class LocalStorageService {
     DateTime? createdAt,
   }) async {
     await _ensureConfigured();
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       throw StateError('Reports box is not initialized');
     }
@@ -189,7 +191,7 @@ class LocalStorageService {
 
   Future<void> cacheReport(Report report) async {
     await _ensureConfigured();
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       return;
     }
@@ -200,7 +202,7 @@ class LocalStorageService {
 
   Future<void> removeCachedReport(String id) async {
     await _ensureConfigured();
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       return;
     }
@@ -211,7 +213,7 @@ class LocalStorageService {
 
   Future<void> clearCachedReports() async {
     await _ensureConfigured();
-    final Box<Map<String, dynamic>>? box = _reportsBox;
+    final Box<dynamic>? box = _reportsBox;
     if (box == null) {
       return;
     }
