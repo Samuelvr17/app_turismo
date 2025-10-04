@@ -62,12 +62,30 @@ class LocalStorageService {
       return;
     }
 
-    final List<Report> reports = box.values
-        .map((Map<String, dynamic> raw) => Report.fromJson(raw))
-        .toList(growable: false)
-      ..sort(
-        (Report a, Report b) => b.createdAt.compareTo(a.createdAt),
-      );
+    final List<Report> reports = <Report>[];
+
+    for (final dynamic key in box.keys) {
+      final Map<String, dynamic>? raw = box.get(key);
+      if (raw == null) {
+        continue;
+      }
+
+      try {
+        reports.add(Report.fromJson(raw));
+      } on FormatException catch (error, stackTrace) {
+        debugPrint('Error al cargar reporte "$key": $error');
+        debugPrint('$stackTrace');
+        await box.delete(key);
+      } on TypeError catch (error, stackTrace) {
+        debugPrint('Error al cargar reporte "$key": $error');
+        debugPrint('$stackTrace');
+        await box.delete(key);
+      }
+    }
+
+    reports.sort(
+      (Report a, Report b) => b.createdAt.compareTo(a.createdAt),
+    );
 
     _reportsNotifier.value = reports;
   }

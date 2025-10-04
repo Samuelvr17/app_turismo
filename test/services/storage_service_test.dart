@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:app_turismo/models/report.dart';
 import 'package:app_turismo/models/safe_route.dart';
@@ -164,5 +165,32 @@ void main() {
     expect(storage.reports.length, 1);
     expect(storage.reports.first.id, secondReport.id);
     expect(storage.reports.first.description, secondReport.description);
+  });
+
+  test('_loadStoredReports ignores invalid cached entries', () async {
+    final Box<Map<String, dynamic>> box =
+        Hive.box<Map<String, dynamic>>('reports_box_$testUserId');
+    await box.clear();
+
+    final Report validReport = Report(
+      id: 'valid-report',
+      typeId: ReportType.security.id,
+      description: 'Valid cached report',
+      createdAt: DateTime(2024, 5, 1),
+    );
+
+    await box.put('valid-report', validReport.toJson());
+    await box.put('invalid-report', <String, dynamic>{
+      'id': 'invalid-report',
+      'typeId': ReportType.service.id,
+      'description': 'Invalid cached report',
+      'createdAt': <String, String>{'oops': 'value'},
+    });
+
+    await localStorage.configureForUser(testUserId);
+
+    final List<Report> reports = localStorage.reports;
+    expect(reports.length, 1);
+    expect(reports.first.id, validReport.id);
   });
 }
