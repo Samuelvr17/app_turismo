@@ -680,21 +680,6 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     }
   }
 
-  Future<void> _openRouteOnMap(SafeRoute route) async {
-    if (!mounted) {
-      return;
-    }
-
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => SafeRouteMapView(
-          routeName: route.name,
-          target: _veredaBuenavistaLocation,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -752,24 +737,38 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: route.pointsOfInterest
-                        .map((String point) => Chip(label: Text(point)))
+                        .map(
+                          (String point) => ActionChip(
+                            label: Text(point),
+                            onPressed: () =>
+                                _openActivityDetail(route: route, activity: point),
+                          ),
+                        )
                         .toList(growable: false),
                   ),
                 ],
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: () => _openRouteOnMap(route),
-                    icon: const Icon(Icons.map),
-                    label: const Text('Ver en Mapa'),
-                  ),
-                ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  void _openActivityDetail({
+    required SafeRoute route,
+    required String activity,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => SafeRouteActivityDetailPage(
+          routeName: route.name,
+          activityName: activity,
+          routeDescription: route.description,
+          location: _veredaBuenavistaLocation,
+        ),
+      ),
     );
   }
 }
@@ -796,77 +795,78 @@ class _RouteInfo extends StatelessWidget {
   }
 }
 
-class SafeRouteMapView extends StatelessWidget {
-  const SafeRouteMapView({
+class SafeRouteActivityDetailPage extends StatefulWidget {
+  const SafeRouteActivityDetailPage({
     super.key,
     required this.routeName,
-    required this.target,
+    required this.activityName,
+    required this.routeDescription,
+    required this.location,
   });
 
   final String routeName;
-  final LatLng target;
+  final String activityName;
+  final String routeDescription;
+  final LatLng location;
 
   @override
-  Widget build(BuildContext context) {
-    return _SafeRouteMapViewWithWeather(
-      routeName: routeName,
-      target: target,
-    );
-  }
+  State<SafeRouteActivityDetailPage> createState() => _SafeRouteActivityDetailPageState();
 }
 
-class _SafeRouteMapViewWithWeather extends StatefulWidget {
-  const _SafeRouteMapViewWithWeather({
-    required this.routeName,
-    required this.target,
-  });
-
-  final String routeName;
-  final LatLng target;
-
-  @override
-  State<_SafeRouteMapViewWithWeather> createState() => _SafeRouteMapViewWithWeatherState();
-}
-
-class _SafeRouteMapViewWithWeatherState extends State<_SafeRouteMapViewWithWeather> {
+class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPage> {
   final WeatherService _weatherService = WeatherService.instance;
   WeatherData? _weatherData;
   bool _isLoadingWeather = true;
   String? _weatherError;
-  late final VoidCallback _weatherListener;
+  VoidCallback? _weatherListener;
+  late final bool _shouldShowWeather;
 
   @override
   void initState() {
     super.initState();
-    
-    _weatherListener = () {
-      if (mounted) {
+    _shouldShowWeather =
+        widget.activityName.toLowerCase().contains('parapente');
+
+    if (_shouldShowWeather) {
+      _weatherListener = () {
+        if (!mounted) {
+          return;
+        }
+
         setState(() {
           _weatherData = _weatherService.currentWeather;
           _isLoadingWeather = false;
-          _weatherError = _weatherData == null ? 'No se pudo obtener información del clima' : null;
+          _weatherError = _weatherData == null
+              ? 'No se pudo obtener información del clima'
+              : null;
         });
-      }
-    };
-    
-    _weatherService.weatherListenable.addListener(_weatherListener);
-    _startWeatherUpdates();
+      };
+
+      _weatherService.weatherListenable.addListener(_weatherListener!);
+      _startWeatherUpdates();
+    } else {
+      _isLoadingWeather = false;
+    }
   }
-  
+
   @override
   void dispose() {
-    _weatherService.weatherListenable.removeListener(_weatherListener);
-    _weatherService.stopAutoUpdate();
+    if (_shouldShowWeather) {
+      if (_weatherListener != null) {
+        _weatherService.weatherListenable.removeListener(_weatherListener!);
+      }
+      _weatherService.stopAutoUpdate();
+    }
     super.dispose();
   }
 
   void _startWeatherUpdates() {
     // Iniciar actualización automática del clima
     _weatherService.startAutoUpdate(
-      latitude: widget.target.latitude,
-      longitude: widget.target.longitude,
+      latitude: widget.location.latitude,
+      longitude: widget.location.longitude,
     );
-    
+
     // Si ya hay datos disponibles, usarlos inmediatamente
     final currentWeather = _weatherService.currentWeather;
     if (currentWeather != null) {
@@ -884,8 +884,8 @@ class _SafeRouteMapViewWithWeatherState extends State<_SafeRouteMapViewWithWeath
   Future<void> _loadWeatherDataManually() async {
     try {
       final weatherData = await _weatherService.getWeatherByCoordinates(
-        latitude: widget.target.latitude,
-        longitude: widget.target.longitude,
+        latitude: widget.location.latitude,
+        longitude: widget.location.longitude,
       );
 
       if (mounted) {
@@ -905,74 +905,186 @@ class _SafeRouteMapViewWithWeatherState extends State<_SafeRouteMapViewWithWeath
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.routeName),
-      ),
-      body: Column(
-        children: [
-          // Weather information
-          if (_isLoadingWeather)
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  SizedBox(width: 12),
-                  Text('Cargando información del clima...'),
-                ],
-              ),
-            )
-          else if (_weatherData != null)
-            WeatherCard(weatherData: _weatherData!)
-          else if (_weatherError != null)
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.warning,
-                    color: Theme.of(context).colorScheme.onErrorContainer,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _weatherError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // Map
-          Expanded(
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(target: widget.target, zoom: 16),
-              markers: <Marker>{
-                Marker(
-                  markerId: MarkerId(widget.routeName),
-                  position: widget.target,
-                  infoWindow: InfoWindow(title: widget.routeName),
-                ),
-              },
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-            ),
+  List<String> get _safetyConsiderations {
+    final String normalizedActivity = widget.activityName.toLowerCase();
+
+    if (normalizedActivity.contains('parapente')) {
+      return const <String>[
+        'Viento: 5-25 km/h (1.4-6.9 m/s) para principiantes.',
+        'Ráfagas: No deben superar 8 m/s para mantener el control del velamen.',
+        'Visibilidad: Mínimo 1-2 km para evaluar obstáculos y puntos de aterrizaje.',
+        'Dirección del viento: Debe ser favorable a la pendiente de despegue y aterrizaje.',
+      ];
+    }
+
+    return const <String>[
+      'Verifica las condiciones climáticas y de seguridad antes de iniciar la actividad.',
+      'Lleva equipo de protección acorde a la actividad y en buen estado.',
+      'Informa a un contacto de confianza sobre tu ruta y horario estimado.',
+    ];
+  }
+
+  Widget _buildWeatherSection(ThemeData theme) {
+    if (!_shouldShowWeather) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Condiciones ambientales',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Para esta actividad no se requiere un monitoreo climático en tiempo real, '
+            'pero revisa el pronóstico antes de salir para garantizar una experiencia segura.',
+            style: theme.textTheme.bodyMedium,
           ),
         ],
+      );
+    }
+
+    if (_isLoadingWeather) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: <Widget>[
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text('Cargando información del clima para la actividad...'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_weatherData != null) {
+      return WeatherCard(weatherData: _weatherData!);
+    }
+
+    if (_weatherError != null) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(
+              Icons.warning,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _weatherError!,
+                style: TextStyle(
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(widget.activityName),
+            Text(
+              widget.routeName,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onPrimary
+                        .withOpacity(0.8),
+                  ),
+            ),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                widget.routeName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                widget.routeDescription,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              _buildWeatherSection(theme),
+              const SizedBox(height: 24),
+              Text(
+                'Consideraciones de seguridad',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              ..._safetyConsiderations
+                  .map(
+                    (String item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text('• '),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              const SizedBox(height: 24),
+              Text(
+                'Consejo rápido',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Recuerda avisar a tus acompañantes o contactos de confianza cuando '
+                'inicies y finalices la actividad. Lleva siempre un botiquín básico y '
+                'mantente hidratado.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
