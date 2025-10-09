@@ -44,7 +44,7 @@ dependencies:
   supabase_flutter: ^2.5.6
   flutter_dotenv: ^5.1.0
   crypto: ^3.0.3
-  ar_flutter_plugin: ^0.8.0
+  #ar_flutter_plugin: ^0.8.0
 
 dev_dependencies:
   flutter_test:
