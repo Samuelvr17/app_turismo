@@ -49,6 +49,10 @@
         <string>Necesitamos acceder a tu ubicación para mostrar tu posición en el mapa y enviar alertas de seguridad.</string>
         <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
         <string>La app utiliza tu ubicación para avisarte cuando ingresas a zonas con riesgos potenciales.</string>
+        <key>NSCameraUsageDescription</key>
+        <string>Usamos la cámara para superponer zonas de peligro en realidad aumentada mientras te desplazas.</string>
+        <key>NSMotionUsageDescription</key>
+        <string>Los sensores de movimiento permiten al modo AR orientar correctamente las alertas de seguridad en el entorno.</string>
         <key>io.flutter.embedded_views_preview</key>
         <true/>
 </dict>

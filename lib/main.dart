@@ -18,6 +18,8 @@ import 'services/storage_service.dart';
 import 'services/auth_service.dart';
 import 'widgets/login_page.dart';
 import 'widgets/weather_card.dart';
+import 'widgets/ar_danger_zone_view.dart';
+import 'models/danger_zone.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -277,28 +279,6 @@ class _NavigationTab {
   final Widget page;
 }
 
-class DangerZone {
-  const DangerZone({
-    required this.id,
-    required this.center,
-    required this.title,
-    required this.description,
-    required this.specificDangers,
-    required this.securityRecommendations,
-    this.radius = defaultRadius,
-  });
-
-  static const double defaultRadius = 100;
-
-  final String id;
-  final LatLng center;
-  final String title;
-  final String description;
-  final String specificDangers;
-  final String securityRecommendations;
-  final double radius;
-}
-
 class MapaPage extends StatefulWidget {
   const MapaPage({super.key});
 
@@ -318,7 +298,8 @@ class _MapaPageState extends State<MapaPage> {
           'Se reportan hurtos menores a transeúntes, motociclistas que irrumpen en las zonas peatonales y acumulación de puestos ambulantes que obstaculizan los puntos de evacuación al final de la tarde.',
       securityRecommendations:
           'Mantén tus objetos de valor seguros, evita manipular dinero en vía pública, recorre rutas iluminadas después del anochecer y coordina puntos de encuentro en lugares vigilados.',
-      radius: DangerZone.defaultRadius,
+      radius: 120,
+      overlayHeight: 18,
     ),
     DangerZone(
       id: 'terminal_transporte_villavicencio',
@@ -330,7 +311,8 @@ class _MapaPageState extends State<MapaPage> {
           'Ocurren robos de equipaje durante el abordaje, ofertas de transporte no autorizado y maniobras continuas de buses y camiones en las bahías de espera.',
       securityRecommendations:
           'Compra tus tiquetes únicamente en puntos oficiales, permanece en áreas iluminadas mientras esperas, vigila tu equipaje en todo momento y utiliza servicios de transporte autorizados para tus desplazamientos.',
-      radius: DangerZone.defaultRadius,
+      radius: 150,
+      overlayHeight: 22,
     ),
   ];
 
@@ -462,6 +444,54 @@ class _MapaPageState extends State<MapaPage> {
       }
     }
     return null;
+  }
+
+  Set<String> _collectNearbyZoneIds(Position position) {
+    final Set<String> ids = <String>{};
+    for (final zone in _dangerZones) {
+      final double distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        zone.center.latitude,
+        zone.center.longitude,
+      );
+
+      if (distance <= zone.radius) {
+        ids.add(zone.id);
+      }
+    }
+    return ids;
+  }
+
+  Future<void> _openArDangerView() async {
+    final Position? position = _currentPosition;
+    if (position == null) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Activa la ubicación para abrir la vista de realidad aumentada.'),
+        ),
+      );
+      return;
+    }
+
+    final Set<String> activeZones = _collectNearbyZoneIds(position);
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ArDangerZoneView(
+          dangerZones: _dangerZones,
+          currentPosition: position,
+          activeZoneIds: activeZones,
+        ),
+      ),
+    );
   }
 
   Future<void> _showDangerDialog(DangerZone zone) async {
@@ -601,7 +631,23 @@ class _MapaPageState extends State<MapaPage> {
       );
     }
 
-    return body;
+    final bool canOpenAr = !_isLoading && _errorMessage == null;
+
+    return Stack(
+      children: [
+        Positioned.fill(child: body),
+        if (canOpenAr)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.extended(
+              onPressed: _openArDangerView,
+              icon: const Icon(Icons.view_in_ar),
+              label: const Text('Ver en AR'),
+            ),
+          ),
+      ],
+    );
   }
 }
 
