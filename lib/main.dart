@@ -633,6 +633,22 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
   static const LatLng _veredaBuenavistaLocation =
       LatLng(4.157296670026874, -73.68158509824853);
 
+  static const Map<String, List<String>> _activityImages =
+      <String, List<String>>{
+    'Miradores': <String>[
+      'https://images.unsplash.com/photo-1491557345352-5929e343eb89?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
+    ],
+    'Parapente': <String>[
+      'https://images.unsplash.com/photo-1517666005605-5d743b0c1e8e?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1519059819145-0ac2d6301b0e?auto=format&fit=crop&w=1200&q=80',
+    ],
+    'Caminata ecológica': <String>[
+      'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80',
+    ],
+  };
+
   final SafeRouteLocalDataSource _localDataSource = SafeRouteLocalDataSource();
   List<SafeRoute> _routes = const <SafeRoute>[];
   bool _isLoading = true;
@@ -760,6 +776,8 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     required SafeRoute route,
     required String activity,
   }) {
+    final List<String> imageUrls =
+        _activityImages[activity] ?? const <String>[];
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => SafeRouteActivityDetailPage(
@@ -767,6 +785,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
           activityName: activity,
           routeDescription: route.description,
           location: _veredaBuenavistaLocation,
+          imageUrls: imageUrls,
         ),
       ),
     );
@@ -802,12 +821,14 @@ class SafeRouteActivityDetailPage extends StatefulWidget {
     required this.activityName,
     required this.routeDescription,
     required this.location,
+    required this.imageUrls,
   });
 
   final String routeName;
   final String activityName;
   final String routeDescription;
   final LatLng location;
+  final List<String> imageUrls;
 
   @override
   State<SafeRouteActivityDetailPage> createState() => _SafeRouteActivityDetailPageState();
@@ -820,10 +841,13 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   String? _weatherError;
   VoidCallback? _weatherListener;
   late final bool _shouldShowWeather;
+  late final PageController _pageController;
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _shouldShowWeather =
         widget.activityName.toLowerCase().contains('parapente');
 
@@ -857,6 +881,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       }
       _weatherService.stopAutoUpdate();
     }
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -880,7 +905,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       _loadWeatherDataManually();
     }
   }
-  
+
   Future<void> _loadWeatherDataManually() async {
     try {
       final weatherData = await _weatherService.getWeatherByCoordinates(
@@ -922,6 +947,145 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       'Lleva equipo de protección acorde a la actividad y en buen estado.',
       'Informa a un contacto de confianza sobre tu ruta y horario estimado.',
     ];
+  }
+
+  Widget _buildImageCarousel(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        SizedBox(
+          height: 240,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.imageUrls.length,
+            onPageChanged: (int index) {
+              setState(() {
+                _currentImageIndex = index;
+              });
+            },
+            itemBuilder: (BuildContext context, int index) {
+              final String imageUrl = widget.imageUrls[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => _showFullScreenImage(imageUrl),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _buildImageWidget(imageUrl),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.center,
+          child: Text(
+            '${_currentImageIndex + 1} de ${widget.imageUrls.length}',
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePlaceholder(ThemeData theme) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.image_not_supported_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No hay imágenes disponibles para esta actividad.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageWidget(String imageUrl) {
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder:
+            (BuildContext context, Widget child, ImageChunkEvent? progress) {
+          if (progress == null) {
+            return child;
+          }
+
+          return Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                value: progress.expectedTotalBytes != null
+                    ? progress.cumulativeBytesLoaded /
+                        progress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+          return Container(
+            color: Colors.black12,
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined, size: 48),
+          );
+        },
+      );
+    }
+
+    return Image.asset(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+        return Container(
+          color: Colors.black12,
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image_outlined, size: 48),
+        );
+      },
+    );
+  }
+
+  void _showFullScreenImage(String imageUrl) {
+    final bool isNetworkImage = imageUrl.startsWith('http');
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.9),
+      builder: (BuildContext context) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            color: Colors.black,
+            alignment: Alignment.center,
+            child: InteractiveViewer(
+              child: isNetworkImage
+                  ? Image.network(imageUrl, fit: BoxFit.contain)
+                  : Image.asset(imageUrl, fit: BoxFit.contain),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildWeatherSection(ThemeData theme) {
@@ -1031,19 +1195,13 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                widget.routeName,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.routeDescription,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 24),
+              if (widget.imageUrls.isNotEmpty) ...<Widget>[
+                _buildImageCarousel(theme),
+                const SizedBox(height: 24),
+              ] else ...<Widget>[
+                _buildImagePlaceholder(theme),
+                const SizedBox(height: 24),
+              ],
               _buildWeatherSection(theme),
               const SizedBox(height: 24),
               Text(
