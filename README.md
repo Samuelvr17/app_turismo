@@ -60,6 +60,30 @@ flutter pub get
 flutter run
 ```
 
+### Probar la vista de zonas de peligro en AR
+
+1. Asegúrate de tener un dispositivo físico compatible con ARCore (Android) o ARKit (iOS); la vista de realidad aumentada necesita cámara y sensores, por lo que no funcionará en emuladores/simuladores.
+2. Instala las dependencias:
+
+   ```bash
+   flutter pub get
+   ```
+
+3. En iOS, instala los pods antes de ejecutar el proyecto:
+
+   ```bash
+   cd ios && pod install && cd ..
+   ```
+
+4. Ejecuta la app como de costumbre, incluyendo tu clave de OpenWeather si la usas para el clima:
+
+   ```bash
+   flutter run --dart-define=OPENWEATHER_API_KEY=TU_API_KEY
+   ```
+
+5. Otorga los permisos de ubicación y cámara cuando la app los solicite (son necesarios para la vista AR).
+6. Desde la pantalla del mapa, usa el botón flotante **"Ver en AR"** para abrir la superposición de zonas de peligro en realidad aumentada, que utilizará tu posición actual para resaltar las zonas activas.
+
 ## Estructura del proyecto
 
 ```
