@@ -5,7 +5,8 @@ import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/models/ar_location_anchor.dart';
+import 'package:ar_flutter_plugin/datatypes/ar_anchor_types.dart';
+import 'package:ar_flutter_plugin/models/ar_geo_anchor.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -35,7 +36,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   ARSessionManager? _sessionManager;
   ARAnchorManager? _anchorManager;
   ARLocationManager? _locationManager;
-  final Map<String, dynamic> _activeAnchors = <String, dynamic>{};
+  final Map<String, String> _activeAnchors = <String, String>{};
 
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
@@ -155,7 +156,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       handleTaps: false,
     );
 
-    await _locationManager?.onInitialize();
+    await _locationManager?.startLocationUpdates();
 
     if (!mounted) {
       return;
@@ -185,21 +186,24 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       return;
     }
 
-    await anchorManager.removeAllAnchors();
+    if (_activeAnchors.isNotEmpty) {
+      await anchorManager.removeAnchors(_activeAnchors.values.toList());
+    }
     _activeAnchors.clear();
 
     for (final DangerZone zone in _zonesToDisplay()) {
       final double altitude = _resolveAltitudeForZone(zone);
-      final ARLocationAnchor anchor = ARLocationAnchor(
+      final ARGeoAnchor anchor = ARGeoAnchor(
         latitude: zone.center.latitude,
         longitude: zone.center.longitude,
         altitude: altitude,
+        type: ARAnchorType.location,
       );
 
-      final dynamic createdAnchor = await anchorManager.addAnchor(anchor);
+      final String? createdAnchorId = await anchorManager.addGeoAnchor(anchor);
 
-      if (createdAnchor != null) {
-        _activeAnchors[zone.id] = createdAnchor;
+      if (createdAnchorId != null) {
+        _activeAnchors[zone.id] = createdAnchorId;
       }
     }
   }
