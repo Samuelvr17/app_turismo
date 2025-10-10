@@ -26,8 +26,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   final LocationService _locationService = LocationService.instance;
   late final VoidCallback _locationListener;
 
-  final Map<String, String> _activeAnchors = <String, String>{};
-
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
 
