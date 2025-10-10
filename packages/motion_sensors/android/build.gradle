@@ -1,35 +1,14 @@
-group 'io.github.sakebook.motion_sensors'
-version '0.1.0'
-
-buildscript {
-    ext.kotlin_version = '1.9.25'
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.5.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    }
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
 }
-
-rootProject.allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
 
 android {
-    compileSdkVersion 34
-
     namespace 'io.github.sakebook.motion_sensors'
+    compileSdk 34
 
     defaultConfig {
-        minSdkVersion 21
+        minSdk 21
     }
 
     compileOptions {
@@ -43,5 +22,10 @@ android {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
+}
+
+repositories {
+    google()
+    mavenCentral()
 }
