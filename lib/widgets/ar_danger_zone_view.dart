@@ -155,7 +155,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -238,7 +238,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
                   Icon(
                     Icons.camera_alt_outlined,
                     size: 80,
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -255,7 +255,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
                       'La funcionalidad de realidad aumentada está temporalmente deshabilitada. Puedes ver las zonas de peligro en el panel inferior.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                     ),
                   ),
