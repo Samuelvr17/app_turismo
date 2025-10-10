@@ -47,6 +47,10 @@ dependencies:
   panorama: ^0.4.1
   # ar_flutter_plugin: ^0.7.3  # Temporalmente deshabilitado por problemas de compatibilidad
 
+dependency_overrides:
+  motion_sensors:
+    path: packages/motion_sensors
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
