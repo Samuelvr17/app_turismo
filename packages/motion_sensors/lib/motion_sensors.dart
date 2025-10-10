@@ -1,5 +1,3 @@
-library motion_sensors;
-
 import 'dart:async';
 
 import 'package:flutter/services.dart';
