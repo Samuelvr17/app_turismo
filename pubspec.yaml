@@ -44,7 +44,7 @@ dependencies:
   supabase_flutter: ^2.5.6
   flutter_dotenv: ^5.1.0
   crypto: ^3.0.3
-  panorama: ^0.7.1
+  panorama: ^0.4.1
   # ar_flutter_plugin: ^0.7.3  # Temporalmente deshabilitado por problemas de compatibilidad
 
 dev_dependencies:
