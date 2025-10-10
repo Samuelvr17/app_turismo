@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/app_user.dart';
 import 'models/report.dart';
@@ -326,6 +329,9 @@ class _MapaPageState extends State<MapaPage> {
   String? _activeZoneId;
   bool _isShowingDialog = false;
 
+  bool get _isAndroidPlatform => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _isIOSPlatform => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
   @override
   void initState() {
     super.initState();
@@ -463,17 +469,130 @@ class _MapaPageState extends State<MapaPage> {
     return ids;
   }
 
+  void _showSnackBarMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<bool> _ensureArCoreAndPermissions() async {
+    if (!mounted) {
+      return false;
+    }
+
+    if (kIsWeb) {
+      _showSnackBarMessage(
+        'La vista de realidad aumentada no está disponible en la versión web de la aplicación.',
+      );
+      return false;
+    }
+
+    if (_isAndroidPlatform) {
+      final bool isSupported = await _isArCoreSupported();
+      if (!isSupported) {
+        _showSnackBarMessage(
+          'Tu dispositivo no es compatible con ARCore o necesita actualizar Servicios de Google Play para RA.',
+        );
+        return false;
+      }
+    }
+
+    final bool permissionsGranted = await _ensureCameraAndMotionPermissions();
+    if (!permissionsGranted) {
+      _showSnackBarMessage(
+        'Se requieren permisos de cámara y sensores de movimiento para abrir la vista de realidad aumentada.',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<bool> _isArCoreSupported() async {
+    final ARSessionManager sessionManager = ARSessionManager();
+    try {
+      final dynamic availability = await sessionManager.checkARAvailability();
+      return _isArAvailabilitySupported(availability);
+    } catch (error, stackTrace) {
+      debugPrint('No fue posible verificar la compatibilidad con ARCore: $error');
+      debugPrint(stackTrace.toString());
+      return false;
+    } finally {
+      await sessionManager.dispose();
+    }
+  }
+
+  bool _isArAvailabilitySupported(dynamic availability) {
+    if (availability == null) {
+      return false;
+    }
+    if (availability is bool) {
+      return availability;
+    }
+    final String normalized = availability.toString().toLowerCase();
+    return normalized.contains('ready') ||
+        normalized.contains('available') ||
+        normalized.contains('supported') ||
+        normalized.contains('installed');
+  }
+
+  Future<bool> _ensureCameraAndMotionPermissions() async {
+    final Set<Permission> permissions = <Permission>{Permission.camera};
+
+    if (_isAndroidPlatform) {
+      permissions.add(Permission.activityRecognition);
+      permissions.add(Permission.sensors);
+    } else if (_isIOSPlatform) {
+      permissions.add(Permission.sensors);
+    }
+
+    for (final Permission permission in permissions) {
+      final bool granted = await _ensurePermission(permission);
+      if (!granted) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<bool> _ensurePermission(Permission permission) async {
+    PermissionStatus status = await permission.status;
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isPermanentlyDenied) {
+      return false;
+    }
+
+    if (status.isDenied || status.isRestricted || status.isLimited) {
+      status = await permission.request();
+      if (status.isGranted) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   Future<void> _openArDangerView() async {
     final Position? position = _currentPosition;
     if (position == null) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activa la ubicación para abrir la vista de realidad aumentada.'),
-        ),
+      _showSnackBarMessage(
+        'Activa la ubicación para abrir la vista de realidad aumentada.',
       );
+      return;
+    }
+
+    if (!await _ensureArCoreAndPermissions()) {
       return;
     }
 

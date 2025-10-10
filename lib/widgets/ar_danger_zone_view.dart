@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -25,6 +27,12 @@ class ArDangerZoneView extends StatefulWidget {
 class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   final LocationService _locationService = LocationService.instance;
   late final VoidCallback _locationListener;
+
+  ARSessionManager? _arSessionManager;
+  ARObjectManager? _arObjectManager;
+  ARAnchorManager? _arAnchorManager;
+  final Map<String, _ZoneAnchorData> _activeAnchors = <String, _ZoneAnchorData>{};
+  bool _isArViewInitialized = false;
 
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
@@ -53,7 +61,41 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   @override
   void dispose() {
     _locationService.stateListenable.removeListener(_locationListener);
+    unawaited(_disposeArSession());
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ArDangerZoneView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    bool shouldUpdateAnchors = false;
+
+    if (_setsDiffer(widget.activeZoneIds, oldWidget.activeZoneIds)) {
+      if (widget.activeZoneIds.isNotEmpty) {
+        _highlightedZoneIds = Set<String>.from(widget.activeZoneIds);
+      } else if (_latestPosition != null) {
+        _highlightedZoneIds = _resolveActiveZoneIds(_latestPosition!);
+      } else {
+        _highlightedZoneIds = <String>{};
+      }
+      shouldUpdateAnchors = true;
+    }
+
+    final Position? current = widget.currentPosition;
+    final Position? previous = oldWidget.currentPosition;
+    if (current != null && _positionsDiffer(current, previous)) {
+      _latestPosition = current;
+      if (_highlightedZoneIds.isEmpty) {
+        _highlightedZoneIds = _resolveActiveZoneIds(current);
+      }
+      shouldUpdateAnchors = true;
+    }
+
+    if (shouldUpdateAnchors && mounted) {
+      setState(() {});
+      unawaited(_syncAnchors());
+    }
   }
 
   void _handleLocationStateChanged() {
@@ -82,6 +124,10 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     if (mounted && (idsChanged || altitudeChanged || locationChanged)) {
       setState(() {});
     }
+
+    if (idsChanged || altitudeChanged || locationChanged) {
+      unawaited(_syncAnchors());
+    }
   }
 
   bool _setsDiffer(Set<String> a, Set<String> b) {
@@ -94,6 +140,18 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       }
     }
     return false;
+  }
+
+  bool _positionsDiffer(Position? current, Position? previous) {
+    if (current == null && previous == null) {
+      return false;
+    }
+    if (current == null || previous == null) {
+      return true;
+    }
+    return current.latitude != previous.latitude ||
+        current.longitude != previous.longitude ||
+        current.altitude != previous.altitude;
   }
 
   Set<String> _resolveActiveZoneIds(Position position) {
@@ -219,48 +277,10 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       ),
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.blue.shade900,
-                  Colors.blue.shade700,
-                  Colors.blue.shade500,
-                ],
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.camera_alt_outlined,
-                    size: 80,
-                    color: Colors.white.withOpacity(0.7),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Vista AR no disponible',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'La funcionalidad de realidad aumentada está temporalmente deshabilitada. Puedes ver las zonas de peligro en el panel inferior.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                    ),
-                  ),
-                ],
-              ),
+          Positioned.fill(
+            child: ARView(
+              onARViewCreated: _onArViewCreated,
+              planeDetectionConfig: PlaneDetectionConfig.none,
             ),
           ),
           _buildLegend(),
@@ -268,4 +288,160 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       ),
     );
   }
+
+  Future<void> _onArViewCreated(
+    ARSessionManager arSessionManager,
+    ARObjectManager arObjectManager,
+    ARAnchorManager arAnchorManager,
+    ARLocationManager _,
+  ) async {
+    _arSessionManager = arSessionManager;
+    _arObjectManager = arObjectManager;
+    _arAnchorManager = arAnchorManager;
+
+    try {
+      await _arSessionManager?.onInitialize(
+        showFeaturePoints: false,
+        showPlanes: false,
+        showWorldOrigin: false,
+        handleTaps: false,
+      );
+      await _arObjectManager?.onInitialize();
+    } catch (error, stackTrace) {
+      debugPrint('No fue posible inicializar la sesión AR: $error');
+      debugPrint(stackTrace.toString());
+    }
+
+    _isArViewInitialized = true;
+    await _syncAnchors();
+  }
+
+  Future<void> _disposeArSession() async {
+    final ARAnchorManager? anchorManager = _arAnchorManager;
+    if (anchorManager != null) {
+      final List<MapEntry<String, _ZoneAnchorData>> anchors =
+          List<MapEntry<String, _ZoneAnchorData>>.from(_activeAnchors.entries);
+      _activeAnchors.clear();
+      for (final MapEntry<String, _ZoneAnchorData> entry in anchors) {
+        try {
+          await anchorManager.removeAnchor(entry.value.anchor);
+        } catch (error) {
+          debugPrint('No se pudo eliminar el ancla ${entry.key}: $error');
+        }
+      }
+    }
+
+    try {
+      await _arSessionManager?.dispose();
+    } catch (error) {
+      debugPrint('Error al cerrar la sesión AR: $error');
+    }
+  }
+
+  Future<void> _syncAnchors() async {
+    if (!_isArViewInitialized) {
+      return;
+    }
+
+    final ARAnchorManager? anchorManager = _arAnchorManager;
+    if (anchorManager == null) {
+      return;
+    }
+
+    final Iterable<DangerZone> zones = _zonesToDisplay();
+    final Set<String> desiredIds = zones.map((DangerZone zone) => zone.id).toSet();
+
+    final List<String> toRemove = _activeAnchors.keys
+        .where((String id) => !desiredIds.contains(id))
+        .toList(growable: false);
+
+    for (final String id in toRemove) {
+      final _ZoneAnchorData? data = _activeAnchors.remove(id);
+      if (data == null) {
+        continue;
+      }
+      try {
+        await anchorManager.removeAnchor(data.anchor);
+      } catch (error) {
+        debugPrint('No se pudo eliminar el ancla $id: $error');
+      }
+    }
+
+    for (final DangerZone zone in zones) {
+      final double altitude = _resolveAltitudeForZone(zone);
+      final _ZoneAnchorData? existing = _activeAnchors[zone.id];
+
+      final bool needsUpdate = existing == null ||
+          existing.latitude != zone.center.latitude ||
+          existing.longitude != zone.center.longitude ||
+          (existing.altitude - altitude).abs() > 0.5;
+
+      if (!needsUpdate) {
+        continue;
+      }
+
+      if (existing != null) {
+        try {
+          await anchorManager.removeAnchor(existing.anchor);
+        } catch (error) {
+          debugPrint('Error al reemplazar el ancla ${zone.id}: $error');
+        }
+      }
+
+      final ARAnchor? anchor = await _createGeoAnchor(zone, altitude);
+      if (anchor != null) {
+        _activeAnchors[zone.id] = _ZoneAnchorData(
+          anchor: anchor,
+          latitude: zone.center.latitude,
+          longitude: zone.center.longitude,
+          altitude: altitude,
+        );
+      }
+    }
+  }
+
+  Future<ARAnchor?> _createGeoAnchor(DangerZone zone, double altitude) async {
+    final ARAnchorManager? anchorManager = _arAnchorManager;
+    if (anchorManager == null) {
+      return null;
+    }
+
+    final ARGeoAnchor anchor = ARGeoAnchor(
+      latitude: zone.center.latitude,
+      longitude: zone.center.longitude,
+      altitude: altitude,
+      name: zone.title,
+    );
+
+    try {
+      final dynamic result = await anchorManager.addAnchor(anchor);
+      if (result is ARAnchor) {
+        return result;
+      }
+      if (result is bool) {
+        return result ? anchor : null;
+      }
+      if (result != null) {
+        return anchor;
+      }
+    } catch (error) {
+      debugPrint('No se pudo crear el ancla para ${zone.id}: $error');
+    }
+
+    return null;
+  }
+}
+
+class _ZoneAnchorData {
+  const _ZoneAnchorData({
+    required this.anchor,
+    required this.latitude,
+    required this.longitude,
+    required this.altitude,
+  });
+
+  final ARAnchor anchor;
+  final double latitude;
+  final double longitude;
+  final double altitude;
 }

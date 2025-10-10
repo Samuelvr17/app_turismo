@@ -43,6 +43,8 @@ Para instrucciones detalladas paso a paso, consulta:
 - Dart 3.9.0 o superior
 - Una cuenta de Supabase (gratuita)
 - Android SDK / Xcode (para desarrollo móvil)
+- Dispositivo Android compatible con ARCore (Android 8.1+ y Google Play Services for AR actualizado) para probar la vista de realidad aumentada
+- Cámara y sensores de movimiento habilitados en el dispositivo (permisos de cámara y actividad física/sensores concedidos)
 
 ## Instalación
 
@@ -81,8 +83,10 @@ flutter run
    flutter run --dart-define=OPENWEATHER_API_KEY=TU_API_KEY
    ```
 
-5. Otorga los permisos de ubicación y cámara cuando la app los solicite (son necesarios para la vista AR).
-6. Desde la pantalla del mapa, usa el botón flotante **"Ver en AR"** para abrir la superposición de zonas de peligro en realidad aumentada, que utilizará tu posición actual para resaltar las zonas activas.
+5. Otorga los permisos de ubicación, cámara y sensores de movimiento cuando la app los solicite. El flujo de navegación ahora valida que todos estén concedidos antes de abrir la vista AR.
+6. Desde la pantalla del mapa, usa el botón flotante **"Ver en AR"**. Antes de navegar, la app comprobará que el dispositivo sea compatible con ARCore y que los permisos requeridos estén activos; si falta alguno, mostrará un mensaje orientativo. Cuando todo esté listo, se abrirá la superposición de zonas de peligro en realidad aumentada utilizando tu posición actual.
+
+> **Requisitos mínimos en Android (ARCore):** Android 8.1 o superior, compatibilidad oficial con ARCore y Google Play Services for AR actualizado. Si cualquiera de estos elementos falta, la app mostrará un aviso antes de intentar abrir la vista de realidad aumentada.
 
 ## Estructura del proyecto
 
