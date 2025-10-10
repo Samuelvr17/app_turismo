@@ -1,7 +1,16 @@
-plugins {
-    id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0'
+    }
 }
+
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace 'io.github.sakebook.motion_sensors'
