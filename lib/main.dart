@@ -1110,7 +1110,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
 
     if (isPanoramicImage) {
       return Panorama(
-        sensorControlEnabled: true,
+        sensorControl: SensorControl.orientation,
         child: Image.asset(
           imageUrl,
           fit: BoxFit.cover,
@@ -1146,7 +1146,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     Widget _buildFullScreenContent() {
       if (isPanoramicImage) {
         return Panorama(
-          sensorControlEnabled: true,
+          sensorControl: SensorControl.orientation,
           child: Image.asset(
             imageUrl,
             fit: BoxFit.cover,
