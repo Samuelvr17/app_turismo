@@ -1316,25 +1316,23 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 12),
-              ..._safetyConsiderations
-                  .map(
-                    (String item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text('• '),
-                          Expanded(
-                            child: Text(
-                              item,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                        ],
+              ..._safetyConsiderations.map(
+                (String item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text('• '),
+                      Expanded(
+                        child: Text(
+                          item,
+                          style: theme.textTheme.bodyMedium,
+                        ),
                       ),
-                    ),
-                  )
-                  .toList(growable: false),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
               Text(
                 'Consejo rápido',
