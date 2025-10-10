@@ -1143,7 +1143,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     final bool isNetworkImage = imageUrl.startsWith('http');
     final bool isPanoramicImage = _isPanoramicImage(imageUrl);
 
-    Widget _buildFullScreenContent() {
+    Widget buildFullScreenContent() {
       if (isPanoramicImage) {
         return Panorama(
           sensorControl: SensorControl.Orientation,
@@ -1179,8 +1179,8 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
             color: Colors.black,
             alignment: Alignment.center,
             child: isPanoramicImage
-                ? _buildFullScreenContent()
-                : InteractiveViewer(child: _buildFullScreenContent()),
+                ? buildFullScreenContent()
+                : InteractiveViewer(child: buildFullScreenContent()),
           ),
         );
       },
