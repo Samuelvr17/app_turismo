@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:panorama/panorama.dart';
 
 import 'models/app_user.dart';
 import 'models/report.dart';
@@ -694,6 +695,10 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     ],
   };
 
+  static const Set<String> _panoramicImageAssets = <String>{
+    'assets/images/parapente/parapente_360.jpg',
+  };
+
   final SafeRouteLocalDataSource _localDataSource = SafeRouteLocalDataSource();
   List<SafeRoute> _routes = const <SafeRoute>[];
   bool _isLoading = true;
@@ -831,6 +836,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
           routeDescription: route.description,
           location: _veredaBuenavistaLocation,
           imageUrls: imageUrls,
+          panoramicImagePaths: _panoramicImageAssets,
         ),
       ),
     );
@@ -867,6 +873,7 @@ class SafeRouteActivityDetailPage extends StatefulWidget {
     required this.routeDescription,
     required this.location,
     required this.imageUrls,
+    this.panoramicImagePaths,
   });
 
   final String routeName;
@@ -874,6 +881,7 @@ class SafeRouteActivityDetailPage extends StatefulWidget {
   final String routeDescription;
   final LatLng location;
   final List<String> imageUrls;
+  final Set<String>? panoramicImagePaths;
 
   @override
   State<SafeRouteActivityDetailPage> createState() => _SafeRouteActivityDetailPageState();
@@ -1064,7 +1072,10 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   }
 
   Widget _buildImageWidget(String imageUrl) {
-    if (imageUrl.startsWith('http')) {
+    final bool isNetworkImage = imageUrl.startsWith('http');
+    final bool isPanoramicImage = _isPanoramicImage(imageUrl);
+
+    if (isNetworkImage) {
       return Image.network(
         imageUrl,
         fit: BoxFit.cover,
@@ -1097,6 +1108,24 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       );
     }
 
+    if (isPanoramicImage) {
+      return Panorama(
+        sensorControlEnabled: true,
+        child: Image.asset(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stackTrace) {
+            return Container(
+              color: Colors.black12,
+              alignment: Alignment.center,
+              child: const Icon(Icons.broken_image_outlined, size: 48),
+            );
+          },
+        ),
+      );
+    }
+
     return Image.asset(
       imageUrl,
       fit: BoxFit.cover,
@@ -1112,6 +1141,33 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
 
   void _showFullScreenImage(String imageUrl) {
     final bool isNetworkImage = imageUrl.startsWith('http');
+    final bool isPanoramicImage = _isPanoramicImage(imageUrl);
+
+    Widget _buildFullScreenContent() {
+      if (isPanoramicImage) {
+        return Panorama(
+          sensorControlEnabled: true,
+          child: Image.asset(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stackTrace) {
+              return Container(
+                color: Colors.black12,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined, size: 48),
+              );
+            },
+          ),
+        );
+      }
+
+      if (isNetworkImage) {
+        return Image.network(imageUrl, fit: BoxFit.contain);
+      }
+
+      return Image.asset(imageUrl, fit: BoxFit.contain);
+    }
 
     showDialog<void>(
       context: context,
@@ -1122,15 +1178,21 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
           child: Container(
             color: Colors.black,
             alignment: Alignment.center,
-            child: InteractiveViewer(
-              child: isNetworkImage
-                  ? Image.network(imageUrl, fit: BoxFit.contain)
-                  : Image.asset(imageUrl, fit: BoxFit.contain),
-            ),
+            child: isPanoramicImage
+                ? _buildFullScreenContent()
+                : InteractiveViewer(child: _buildFullScreenContent()),
           ),
         );
       },
     );
+  }
+
+  bool _isPanoramicImage(String imageUrl) {
+    final Set<String>? panoramicPaths = widget.panoramicImagePaths;
+    if (panoramicPaths == null || panoramicPaths.isEmpty) {
+      return false;
+    }
+    return panoramicPaths.contains(imageUrl);
   }
 
   Widget _buildWeatherSection(ThemeData theme) {
