@@ -1,12 +1,5 @@
 import 'dart:async';
 
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
-import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
-import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/datatypes/ar_anchor_types.dart';
-import 'package:ar_flutter_plugin/models/ar_geo_anchor.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -33,14 +26,10 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   final LocationService _locationService = LocationService.instance;
   late final VoidCallback _locationListener;
 
-  ARSessionManager? _sessionManager;
-  ARAnchorManager? _anchorManager;
-  ARLocationManager? _locationManager;
   final Map<String, String> _activeAnchors = <String, String>{};
 
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
-  bool _isSessionReady = false;
 
   @override
   void initState() {
@@ -66,7 +55,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   @override
   void dispose() {
     _locationService.stateListenable.removeListener(_locationListener);
-    unawaited(_sessionManager?.dispose());
     super.dispose();
   }
 
@@ -92,10 +80,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     }
 
     _latestPosition = position;
-
-    if (_isSessionReady && (idsChanged || altitudeChanged)) {
-      unawaited(_refreshAnchors());
-    }
 
     if (mounted && (idsChanged || altitudeChanged || locationChanged)) {
       setState(() {});
@@ -140,35 +124,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     return widget.dangerZones.where((zone) => ids.contains(zone.id));
   }
 
-  Future<void> _onArViewCreated(
-    ARSessionManager sessionManager,
-    ARAnchorManager anchorManager,
-    ARLocationManager locationManager,
-  ) async {
-    _sessionManager = sessionManager;
-    _anchorManager = anchorManager;
-    _locationManager = locationManager;
-
-    await _sessionManager?.onInitialize(
-      showFeaturePoints: false,
-      showPlanes: false,
-      showWorldOrigin: false,
-      handleTaps: false,
-    );
-
-    await _locationManager?.startLocationUpdates();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isSessionReady = true;
-    });
-
-    await _refreshAnchors();
-  }
-
   double _resolveAltitudeForZone(DangerZone zone) {
     if (zone.altitude != DangerZone.defaultAltitude) {
       return zone.altitude;
@@ -178,34 +133,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       return position.altitude + zone.overlayHeight;
     }
     return zone.overlayHeight;
-  }
-
-  Future<void> _refreshAnchors() async {
-    final ARAnchorManager? anchorManager = _anchorManager;
-    if (anchorManager == null) {
-      return;
-    }
-
-    if (_activeAnchors.isNotEmpty) {
-      await anchorManager.removeAnchors(_activeAnchors.values.toList());
-    }
-    _activeAnchors.clear();
-
-    for (final DangerZone zone in _zonesToDisplay()) {
-      final double altitude = _resolveAltitudeForZone(zone);
-      final ARGeoAnchor anchor = ARGeoAnchor(
-        latitude: zone.center.latitude,
-        longitude: zone.center.longitude,
-        altitude: altitude,
-        type: ARAnchorType.location,
-      );
-
-      final String? createdAnchorId = await anchorManager.addGeoAnchor(anchor);
-
-      if (createdAnchorId != null) {
-        _activeAnchors[zone.id] = createdAnchorId;
-      }
-    }
   }
 
   double? _distanceToZone(DangerZone zone) {
@@ -243,14 +170,6 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
                     .textTheme
                     .titleMedium
                     ?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Anclas activas: ${_activeAnchors.length}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white70),
               ),
               const SizedBox(height: 8),
               for (final zone in zones) ...<Widget>[
@@ -298,13 +217,53 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Alertas AR de zonas de peligro'),
+        title: const Text('Zonas de peligro'),
       ),
       body: Stack(
         children: [
-          ARView(
-            onARViewCreated: _onArViewCreated,
-            planeDetectionConfig: PlaneDetectionConfig.none,
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.blue.shade900,
+                  Colors.blue.shade700,
+                  Colors.blue.shade500,
+                ],
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.camera_alt_outlined,
+                    size: 80,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Vista AR no disponible',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'La funcionalidad de realidad aumentada está temporalmente deshabilitada. Puedes ver las zonas de peligro en el panel inferior.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           _buildLegend(),
         ],
