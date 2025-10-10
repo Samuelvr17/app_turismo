@@ -1171,7 +1171,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
 
     showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
+      barrierColor: Colors.black.withValues(alpha: 0.9),
       builder: (BuildContext context) {
         return GestureDetector(
           onTap: () => Navigator.of(context).pop(),
@@ -1290,7 +1290,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
                     color: Theme.of(context)
                         .colorScheme
                         .onPrimary
-                        .withOpacity(0.8),
+                        .withValues(alpha: 0.8),
                   ),
             ),
           ],
