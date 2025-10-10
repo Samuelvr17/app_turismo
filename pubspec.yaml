@@ -44,12 +44,7 @@ dependencies:
   supabase_flutter: ^2.5.6
   flutter_dotenv: ^6.0.0
   crypto: ^3.0.3
-  panorama: ^0.4.1
   # ar_flutter_plugin: ^0.7.3  # Temporalmente deshabilitado por problemas de compatibilidad
-
-dependency_overrides:
-  motion_sensors:
-    path: packages/motion_sensors
 
 dev_dependencies:
   flutter_test:
