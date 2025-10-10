@@ -686,8 +686,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
     ],
     'Parapente': <String>[
-      'https://images.unsplash.com/photo-1517666005605-5d743b0c1e8e?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1519059819145-0ac2d6301b0e?auto=format&fit=crop&w=1200&q=80',
+      'assets/images/parapente/parapente_360.jpg',
     ],
     'Caminata ecológica': <String>[
       'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=1200&q=80',
