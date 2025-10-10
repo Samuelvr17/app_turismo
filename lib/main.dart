@@ -1047,7 +1047,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
@@ -1057,7 +1057,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
             Icon(
               Icons.image_not_supported_outlined,
               size: 48,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: theme.colorScheme.onSurface,
             ),
             const SizedBox(height: 8),
             Text(
@@ -1218,7 +1218,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Row(
