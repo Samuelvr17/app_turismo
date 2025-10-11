@@ -1,10 +1,3 @@
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
 val rootBuildDir = rootProject.layout.projectDirectory.dir("../build")
 rootProject.layout.buildDirectory.set(rootBuildDir)
 
