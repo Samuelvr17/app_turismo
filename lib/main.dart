@@ -1053,8 +1053,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       children: <Widget>[
         PanoramaViewer(
           animSpeed: 0.8,
-          sensorControlEnabled: true,
-          sensorSpeed: 1.0,
+          sensorControl: SensorControl.orientation,
           child: Image.asset(
             imageAsset,
             fit: BoxFit.cover,
@@ -1197,8 +1196,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       if (isPanorama) {
         return PanoramaViewer(
           animSpeed: 0.8,
-          sensorControlEnabled: true,
-          sensorSpeed: 1.0,
+          sensorControl: SensorControl.orientation,
           child: Image.asset(
             imageUrl,
             fit: BoxFit.cover,
