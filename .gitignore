@@ -60,3 +60,6 @@ android/app/src/main/res/values/strings.xml
 por_hacer.txt
 
 /android/build/
+
+# DevTools
+devtools_options.yaml
