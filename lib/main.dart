@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:panorama_viewer/panorama_viewer.dart';
 
 import 'models/app_user.dart';
 import 'models/report.dart';
@@ -885,6 +886,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   bool _isLoadingWeather = true;
   String? _weatherError;
   VoidCallback? _weatherListener;
+  late final bool _isParaglidingActivity;
   late final bool _shouldShowWeather;
   late final PageController _pageController;
   int _currentImageIndex = 0;
@@ -893,8 +895,9 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   void initState() {
     super.initState();
     _pageController = PageController();
-    _shouldShowWeather =
-        widget.activityName.toLowerCase().contains('parapente');
+    final String normalizedActivity = widget.activityName.toLowerCase();
+    _isParaglidingActivity = normalizedActivity.contains('parapente');
+    _shouldShowWeather = _isParaglidingActivity;
 
     if (_shouldShowWeather) {
       _weatherListener = () {
@@ -1010,14 +1013,18 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
             },
             itemBuilder: (BuildContext context, int index) {
               final String imageUrl = widget.imageUrls[index];
+              final Widget content = _isPanoramaImage(imageUrl)
+                  ? _buildPanoramaPreview(context, imageUrl)
+                  : GestureDetector(
+                      onTap: () => _showFullScreenImage(imageUrl),
+                      child: _buildImageWidget(imageUrl),
+                    );
+
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: () => _showFullScreenImage(imageUrl),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildImageWidget(imageUrl),
-                  ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: content,
                 ),
               );
             },
@@ -1029,6 +1036,76 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
           child: Text(
             '${_currentImageIndex + 1} de ${widget.imageUrls.length}',
             style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool _isPanoramaImage(String imageUrl) {
+    return _isParaglidingActivity && !imageUrl.startsWith('http');
+  }
+
+  Widget _buildPanoramaPreview(BuildContext context, String imageAsset) {
+    final ThemeData theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        PanoramaViewer(
+          animSpeed: 0.8,
+          sensorControlEnabled: true,
+          sensorSpeed: 1.0,
+          child: Image.asset(
+            imageAsset,
+            fit: BoxFit.cover,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stackTrace) {
+              return Container(
+                color: Colors.black12,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined, size: 48),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(Icons.threesixty, color: Colors.white, size: 18),
+                  SizedBox(width: 6),
+                  Text(
+                    'Vista 360°',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: FilledButton.tonalIcon(
+            style: FilledButton.styleFrom(
+              backgroundColor:
+                  theme.colorScheme.surface.withValues(alpha: 0.85),
+            ),
+            onPressed: () => _showFullScreenImage(imageAsset),
+            icon: const Icon(Icons.open_in_full),
+            label: const Text('Pantalla completa'),
           ),
         ),
       ],
@@ -1114,8 +1191,29 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
 
   void _showFullScreenImage(String imageUrl) {
     final bool isNetworkImage = imageUrl.startsWith('http');
+    final bool isPanorama = _isPanoramaImage(imageUrl);
 
     Widget buildFullScreenContent() {
+      if (isPanorama) {
+        return PanoramaViewer(
+          animSpeed: 0.8,
+          sensorControlEnabled: true,
+          sensorSpeed: 1.0,
+          child: Image.asset(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stackTrace) {
+              return Container(
+                color: Colors.black12,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined, size: 48),
+              );
+            },
+          ),
+        );
+      }
+
       if (isNetworkImage) {
         return Image.network(
           imageUrl,
@@ -1147,6 +1245,31 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.9),
       builder: (BuildContext context) {
+        if (isPanorama) {
+          return Material(
+            color: Colors.black,
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(child: buildFullScreenContent()),
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: SafeArea(
+                    child: IconButton.filledTonal(
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            Colors.black.withValues(alpha: 0.6),
+                      ),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return GestureDetector(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
