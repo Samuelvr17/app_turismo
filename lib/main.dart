@@ -7,17 +7,22 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
 
 import 'models/app_user.dart';
+import 'models/activity_survey.dart';
 import 'models/report.dart';
 import 'models/safe_route.dart';
 import 'models/user_preferences.dart';
 import 'models/weather_data.dart';
+import 'data/default_safe_routes.dart';
+import 'services/activity_survey_service.dart';
 import 'services/location_service.dart';
 import 'services/safe_route_local_data_source.dart';
 import 'services/weather_service.dart';
 import 'services/supabase_service.dart';
 import 'services/storage_service.dart';
 import 'services/auth_service.dart';
+import 'widgets/activity_survey_page.dart';
 import 'widgets/login_page.dart';
+import 'widgets/recommendations_page.dart';
 import 'widgets/weather_card.dart';
 import 'widgets/ar_danger_zone_view.dart';
 import 'models/danger_zone.dart';
@@ -71,6 +76,7 @@ class _AuthGateState extends State<AuthGate> {
             _lastUser = null;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               unawaited(StorageService.instance.clearForSignOut());
+              unawaited(ActivitySurveyService.instance.clearForSignOut());
             });
           }
           return const LoginPage();
@@ -100,12 +106,15 @@ class AuthenticatedApp extends StatefulWidget {
 
 class _AuthenticatedAppState extends State<AuthenticatedApp> {
   late Future<void> _initialization;
+  final ActivitySurveyService _surveyService = ActivitySurveyService.instance;
 
   @override
   void initState() {
     super.initState();
-    _initialization =
-        StorageService.instance.initializeForUser(widget.user.id);
+    _initialization = Future.wait<void>(<Future<void>>[
+      StorageService.instance.initializeForUser(widget.user.id),
+      _surveyService.initializeForUser(widget.user.id),
+    ]);
   }
 
   @override
@@ -113,8 +122,10 @@ class _AuthenticatedAppState extends State<AuthenticatedApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.user.id != widget.user.id) {
       setState(() {
-        _initialization =
-            StorageService.instance.initializeForUser(widget.user.id);
+        _initialization = Future.wait<void>(<Future<void>>[
+          StorageService.instance.initializeForUser(widget.user.id),
+          _surveyService.initializeForUser(widget.user.id),
+        ]);
       });
     }
   }
@@ -163,8 +174,21 @@ class _AuthenticatedAppState extends State<AuthenticatedApp> {
           );
         }
 
-        return MainScaffold(
-          onLogout: AuthService.instance.logout,
+        return ValueListenableBuilder<ActivitySurvey?>(
+          valueListenable: _surveyService.surveyListenable,
+          builder: (BuildContext context, ActivitySurvey? survey, _) {
+            if (survey == null) {
+              return ActivitySurveyPage(
+                onCompleted: () {
+                  setState(() {});
+                },
+              );
+            }
+
+            return MainScaffold(
+              onLogout: AuthService.instance.logout,
+            );
+          },
         );
       },
     );
@@ -209,6 +233,13 @@ class _MainScaffoldState extends State<MainScaffold> {
       icon: Icons.report,
       page: ReportesPage(
         key: PageStorageKey<String>('ReportesPage'),
+      ),
+    ),
+    _NavigationTab(
+      label: 'Recomendaciones',
+      icon: Icons.auto_awesome,
+      page: RecommendationsPage(
+        key: PageStorageKey<String>('RecommendationsPage'),
       ),
     ),
   ];
@@ -660,23 +691,6 @@ class RutasSegurasPage extends StatefulWidget {
 }
 
 class _RutasSegurasPageState extends State<RutasSegurasPage> {
-  static const List<SafeRoute> _defaultRoutes = <SafeRoute>[
-    SafeRoute(
-      name: 'Vereda Buenavista',
-      duration: 'A 15 minutos de Villavicencio',
-      difficulty: 'Actividades para todos',
-      description:
-          '🍃 La vereda Buenavista ofrece un clima distinto en Villavicencio, a tan solo '
-          '15 minutos de su casco urbano, ideal para el turismo deportivo, de naturaleza '
-          'y religioso.',
-      pointsOfInterest: <String>[
-        'Miradores',
-        'Parapente',
-        'Caminata ecológica',
-      ],
-    ),
-  ];
-
   static const LatLng _veredaBuenavistaLocation =
       LatLng(4.157296670026874, -73.68158509824853);
 
@@ -714,14 +728,14 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       }
 
       if (routes.isEmpty) {
-        await _localDataSource.saveRoutes(_defaultRoutes);
+        await _localDataSource.saveRoutes(defaultSafeRoutes);
 
         if (!mounted) {
           return;
         }
 
         setState(() {
-          _routes = _defaultRoutes;
+          _routes = defaultSafeRoutes;
           _isLoading = false;
         });
       } else {
@@ -736,7 +750,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       }
 
       setState(() {
-        _routes = _defaultRoutes;
+        _routes = defaultSafeRoutes;
         _isLoading = false;
       });
     }
@@ -755,7 +769,8 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _routes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      separatorBuilder: (BuildContext context, int index) =>
+          const SizedBox(height: 16),
       itemBuilder: (BuildContext context, int index) {
         final SafeRoute route = _routes[index];
 
