@@ -178,26 +178,14 @@ class _ActivitySurveyPageState extends State<ActivitySurveyPage> {
               const SizedBox(height: 24),
               _buildSection(
                 title: '¿Cómo describirías tu estilo de viaje?',
-                child: Column(
-                  children: _travelStyles
-                      .map(
-                        (_Option<String> option) => RadioListTile<String>(
-                          title: Text(option.label),
-                          subtitle: option.description != null
-                              ? Text(option.description!)
-                              : null,
-                          value: option.value,
-                          groupValue: _travelStyle,
-                          onChanged: (String? value) {
-                            if (value != null) {
-                              setState(() {
-                                _travelStyle = value;
-                              });
-                            }
-                          },
-                        ),
-                      )
-                      .toList(),
+                child: _buildSelectableList(
+                  options: _travelStyles,
+                  selectedValue: _travelStyle,
+                  onSelected: (String value) {
+                    setState(() {
+                      _travelStyle = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(height: 24),
@@ -220,70 +208,40 @@ class _ActivitySurveyPageState extends State<ActivitySurveyPage> {
               const SizedBox(height: 24),
               _buildSection(
                 title: 'Nivel de actividad física preferido',
-                child: Column(
-                  children: _activityLevels
-                      .map(
-                        (_Option<String> option) => RadioListTile<String>(
-                          title: Text(option.label),
-                          subtitle: option.description != null
-                              ? Text(option.description!)
-                              : null,
-                          value: option.value,
-                          groupValue: _activityLevel,
-                          onChanged: (String? value) {
-                            if (value != null) {
-                              setState(() {
-                                _activityLevel = value;
-                              });
-                            }
-                          },
-                        ),
-                      )
-                      .toList(),
+                child: _buildSelectableList(
+                  options: _activityLevels,
+                  selectedValue: _activityLevel,
+                  onSelected: (String value) {
+                    setState(() {
+                      _activityLevel = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(height: 24),
               _buildSection(
                 title: '¿Con quién viajas principalmente?',
-                child: Column(
-                  children: _travelCompanions
-                      .map(
-                        (_Option<String> option) => RadioListTile<String>(
-                          title: Text(option.label),
-                          value: option.value,
-                          groupValue: _travelCompanion,
-                          onChanged: (String? value) {
-                            if (value != null) {
-                              setState(() {
-                                _travelCompanion = value;
-                              });
-                            }
-                          },
-                        ),
-                      )
-                      .toList(),
+                child: _buildSelectableList(
+                  options: _travelCompanions,
+                  selectedValue: _travelCompanion,
+                  onSelected: (String value) {
+                    setState(() {
+                      _travelCompanion = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(height: 24),
               _buildSection(
                 title: '¿Cuál es tu presupuesto aproximado?',
-                child: Column(
-                  children: _budgetLevels
-                      .map(
-                        (_Option<String> option) => RadioListTile<String>(
-                          title: Text(option.label),
-                          value: option.value,
-                          groupValue: _budgetLevel,
-                          onChanged: (String? value) {
-                            if (value != null) {
-                              setState(() {
-                                _budgetLevel = value;
-                              });
-                            }
-                          },
-                        ),
-                      )
-                      .toList(),
+                child: _buildSelectableList(
+                  options: _budgetLevels,
+                  selectedValue: _budgetLevel,
+                  onSelected: (String value) {
+                    setState(() {
+                      _budgetLevel = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(height: 24),
@@ -362,6 +320,77 @@ class _ActivitySurveyPageState extends State<ActivitySurveyPage> {
         const SizedBox(height: 12),
         child,
       ],
+    );
+  }
+
+  Widget _buildSelectableList({
+    required List<_Option<String>> options,
+    required String selectedValue,
+    required ValueChanged<String> onSelected,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
+    return Column(
+      children: options.map((_Option<String> option) {
+        final bool isSelected = option.value == selectedValue;
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
+            ),
+            color: isSelected ? colorScheme.primaryContainer : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => onSelected(option.value),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          isSelected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outline,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            option.label,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (option.description != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        option.description!,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

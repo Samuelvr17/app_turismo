@@ -12,6 +12,7 @@ import 'models/report.dart';
 import 'models/safe_route.dart';
 import 'models/user_preferences.dart';
 import 'models/weather_data.dart';
+import 'data/default_safe_routes.dart';
 import 'services/activity_survey_service.dart';
 import 'services/location_service.dart';
 import 'services/safe_route_local_data_source.dart';
@@ -690,23 +691,6 @@ class RutasSegurasPage extends StatefulWidget {
 }
 
 class _RutasSegurasPageState extends State<RutasSegurasPage> {
-  static const List<SafeRoute> _defaultRoutes = <SafeRoute>[
-    SafeRoute(
-      name: 'Vereda Buenavista',
-      duration: 'A 15 minutos de Villavicencio',
-      difficulty: 'Actividades para todos',
-      description:
-          '🍃 La vereda Buenavista ofrece un clima distinto en Villavicencio, a tan solo '
-          '15 minutos de su casco urbano, ideal para el turismo deportivo, de naturaleza '
-          'y religioso.',
-      pointsOfInterest: <String>[
-        'Miradores',
-        'Parapente',
-        'Caminata ecológica',
-      ],
-    ),
-  ];
-
   static const LatLng _veredaBuenavistaLocation =
       LatLng(4.157296670026874, -73.68158509824853);
 
@@ -744,14 +728,14 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       }
 
       if (routes.isEmpty) {
-        await _localDataSource.saveRoutes(_defaultRoutes);
+        await _localDataSource.saveRoutes(defaultSafeRoutes);
 
         if (!mounted) {
           return;
         }
 
         setState(() {
-          _routes = _defaultRoutes;
+          _routes = defaultSafeRoutes;
           _isLoading = false;
         });
       } else {
@@ -766,7 +750,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       }
 
       setState(() {
-        _routes = _defaultRoutes;
+        _routes = defaultSafeRoutes;
         _isLoading = false;
       });
     }
@@ -785,7 +769,8 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _routes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      separatorBuilder: (BuildContext context, int index) =>
+          const SizedBox(height: 16),
       itemBuilder: (BuildContext context, int index) {
         final SafeRoute route = _routes[index];
 

@@ -155,7 +155,8 @@ No subas este archivo a control de versiones.
 ### Servicio de recomendaciones basado en IA
 
 El repositorio incluye una API independiente construida con FastAPI en la carpeta `ai_service/`. Debes ejecutarla aparte de la
-aplicación Flutter.
+aplicación Flutter. La app móvil envía al servicio las actividades disponibles (los puntos de interés de las rutas seguras)
+para que las recomendaciones se limiten a lo que realmente existe en la base de datos.
 
 1. Crea y activa un entorno virtual de Python (opcional pero recomendado).
 2. Instala las dependencias:

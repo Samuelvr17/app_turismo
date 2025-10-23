@@ -8,7 +8,7 @@ conjunto curado de actividades disponibles en Villavicencio y sus alrededores.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import Dict, List, cast
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -38,11 +38,26 @@ class SurveyPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class AvailableActivity(BaseModel):
+    """Actividad disponible asociada a una ruta turística."""
+
+    name: str
+    route_name: str = Field(alias="routeName")
+    route_description: str = Field(alias="routeDescription")
+    route_difficulty: str = Field(alias="routeDifficulty")
+    tags: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class RecommendationRequest(BaseModel):
     """Petición para generar recomendaciones de actividades."""
 
     user_id: str
     survey: SurveyPayload
+    available_activities: List[AvailableActivity] = Field(
+        default_factory=list, alias="availableActivities"
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -84,117 +99,71 @@ class _ActivityTemplate(BaseModel):
 
 class _RecommendationEngine:
     def __init__(self) -> None:
-        self._activities: List[_ActivityTemplate] = [
-            _ActivityTemplate(
-                name="Caminata guiada en el Parque Las Malocas",
-                summary="Recorrido cultural por las tradiciones llaneras, con talleres de artesanía y show folclórico.",
-                location="Parque Las Malocas, Villavicencio",
-                tags=["cultura", "naturaleza", "familia"],
-                travel_styles=["relajado", "equilibrado"],
-                activity_levels=["baja", "media"],
-                companions=["familia", "pareja", "amigos", "solo"],
-                budgets=["economico", "moderado"],
-                times_of_day=["manana", "tarde"],
-            ),
-            _ActivityTemplate(
-                name="Rafting en el Río Güejar",
-                summary="Descenso por aguas cristalinas, rodeado de cañones y cascadas ideales para los amantes de la adrenalina.",
-                location="Río Güejar, Mesetas",
-                tags=["aventura", "naturaleza", "adrenalina"],
-                travel_styles=["aventurero"],
-                activity_levels=["media", "alta"],
-                companions=["amigos", "pareja"],
-                budgets=["moderado", "premium"],
-                times_of_day=["manana", "tarde"],
-            ),
-            _ActivityTemplate(
-                name="Cabalgata al Mirador Cristo Rey",
-                summary="Cabalgata al atardecer con vista panorámica de la ciudad y fotografía profesional opcional.",
-                location="Mirador Cristo Rey, Villavicencio",
-                tags=["naturaleza", "aventura", "panorama"],
-                travel_styles=["equilibrado", "aventurero"],
-                activity_levels=["media"],
-                companions=["pareja", "amigos"],
-                budgets=["moderado"],
-                times_of_day=["tarde"],
-            ),
-            _ActivityTemplate(
-                name="Tour gastronómico por la Ruta Llanera",
-                summary="Degustación de mamona, pan de arroz, café de origen y cocteles locales en restaurantes seleccionados.",
-                location="Centro gastronómico de Villavicencio",
-                tags=["gastronomia", "cultura", "nocturna"],
-                travel_styles=["equilibrado", "relajado"],
-                activity_levels=["baja"],
-                companions=["pareja", "amigos"],
-                budgets=["moderado", "premium"],
-                times_of_day=["tarde", "noche"],
-            ),
-            _ActivityTemplate(
-                name="Jornada de bienestar en termales",
-                summary="Circuito relajante con spa, masajes y meditación guiada en aguas termales naturales.",
-                location="Termales de Santa Helena",
-                tags=["bienestar", "relajacion"],
-                travel_styles=["relajado"],
-                activity_levels=["baja"],
-                companions=["pareja", "amigos"],
-                budgets=["premium"],
-                times_of_day=["manana", "tarde"],
-            ),
-            _ActivityTemplate(
-                name="Senderismo al Caño Cristales",
-                summary='Exploración guiada del "río de los cinco colores" con fotografía y picnic local.',
-                location="Parque Nacional Natural Sierra de la Macarena",
-                tags=["naturaleza", "fotografia", "aventura"],
-                travel_styles=["aventurero", "equilibrado"],
-                activity_levels=["media", "alta"],
-                companions=["amigos", "pareja", "solo"],
-                budgets=["premium"],
-                times_of_day=["manana"],
-            ),
-            _ActivityTemplate(
-                name="Experiencia astronómica en los Llanos",
-                summary="Observación de estrellas y astrofotografía con guía experto y fogata tradicional.",
-                location="Finca agro turística a las afueras de Villavicencio",
-                tags=["naturaleza", "ciencia", "nocturna"],
-                travel_styles=["relajado", "equilibrado"],
-                activity_levels=["baja"],
-                companions=["pareja", "amigos", "familia"],
-                budgets=["economico", "moderado"],
-                times_of_day=["noche"],
-            ),
-            _ActivityTemplate(
-                name="Circuito de parques urbanos y muralismo",
-                summary="Ruta guiada en bicicleta eléctrica por murales urbanos, cafés de especialidad y parques emblemáticos.",
-                location="Centro de Villavicencio",
-                tags=["cultura", "aventura", "urbano"],
-                travel_styles=["equilibrado"],
-                activity_levels=["media"],
-                companions=["amigos", "solo"],
-                budgets=["economico", "moderado"],
-                times_of_day=["manana", "tarde"],
-            ),
-            _ActivityTemplate(
-                name="Safari fotográfico por los llanos",
-                summary="Recorrido en camioneta 4x4 para avistar fauna llanera y aprender técnicas de fotografía de naturaleza.",
-                location="Reserva Natural Lagos de Menegua",
-                tags=["naturaleza", "fotografia", "aventura"],
-                travel_styles=["aventurero", "equilibrado"],
-                activity_levels=["media"],
-                companions=["familia", "amigos", "pareja"],
-                budgets=["premium"],
-                times_of_day=["manana"],
-            ),
-        ]
+        self._profiles: Dict[str, Dict[str, object]] = {
+            "miradores": {
+                "summary": (
+                    "Recorrido por los miradores de {route_name} para admirar los Llanos "
+                    "Orientales y capturar fotografías panorámicas."
+                ),
+                "location": "{route_name} - Miradores",
+                "tags": ["naturaleza", "panorama", "fotografia"],
+                "travel_styles": ["relajado", "equilibrado"],
+                "activity_levels": ["baja", "media"],
+                "companions": ["familia", "pareja", "amigos", "solo"],
+                "budgets": ["economico", "moderado"],
+                "times_of_day": ["manana", "tarde"],
+            },
+            "parapente": {
+                "summary": (
+                    "Vuelo en parapente sobre {route_name} con instructores certificados "
+                    "y vistas amplias de Villavicencio."
+                ),
+                "location": "Zona de parapente en {route_name}",
+                "tags": ["aventura", "adrenalina", "naturaleza"],
+                "travel_styles": ["aventurero", "equilibrado"],
+                "activity_levels": ["media", "alta"],
+                "companions": ["amigos", "pareja"],
+                "budgets": ["moderado", "premium"],
+                "times_of_day": ["manana", "tarde"],
+            },
+            "caminata ecológica": {
+                "summary": (
+                    "Sendero interpretativo por {route_name} para conocer la flora, la fauna "
+                    "y las historias locales."
+                ),
+                "location": "{route_name}",
+                "tags": ["naturaleza", "bienestar", "cultura"],
+                "travel_styles": ["equilibrado", "relajado"],
+                "activity_levels": ["media"],
+                "companions": ["familia", "amigos", "pareja", "solo"],
+                "budgets": ["economico", "moderado"],
+                "times_of_day": ["manana", "tarde"],
+            },
+        }
 
-    def recommend(self, survey: SurveyPayload, limit: int = 5) -> List[RecommendationOut]:
+    def recommend(
+        self,
+        survey: SurveyPayload,
+        available_activities: List[AvailableActivity],
+        limit: int = 5,
+    ) -> List[RecommendationOut]:
+        templates: List[_ActivityTemplate] = []
+        for activity in available_activities:
+            template = self._build_template(activity)
+            if template is not None:
+                templates.append(template)
+
+        if not templates:
+            return []
+
         scored = [
             (self._score_activity(activity, survey), activity)
-            for activity in self._activities
+            for activity in templates
         ]
         scored.sort(key=lambda item: item[0], reverse=True)
 
         recommendations: List[RecommendationOut] = []
-        for score, activity in scored[:limit]:
+        for score, activity in scored[: min(limit, len(scored))]:
             confidence = min(1.0, 0.25 + score / 10)
             recommendations.append(
                 RecommendationOut(
@@ -207,6 +176,100 @@ class _RecommendationEngine:
                 )
             )
         return recommendations
+
+    def _build_template(
+        self, available: AvailableActivity
+    ) -> _ActivityTemplate | None:
+        key = available.name.strip().casefold()
+        profile = self._profiles.get(key)
+        if profile is not None:
+            summary_template = cast(str, profile["summary"])
+            location_template = cast(str, profile.get("location", "{route_name}"))
+            tags = list(cast(List[str], profile["tags"]))
+            extra_tags = [tag for tag in available.tags if tag not in tags]
+            tags.extend(extra_tags)
+
+            return _ActivityTemplate(
+                name=available.name,
+                summary=summary_template.format(
+                    route_name=available.route_name,
+                    route_description=available.route_description,
+                    activity_name=available.name,
+                ),
+                location=location_template.format(
+                    route_name=available.route_name,
+                    activity_name=available.name,
+                ),
+                tags=tags,
+                travel_styles=list(cast(List[str], profile["travel_styles"])),
+                activity_levels=list(cast(List[str], profile["activity_levels"])),
+                companions=list(cast(List[str], profile["companions"])),
+                budgets=list(cast(List[str], profile["budgets"])),
+                times_of_day=list(cast(List[str], profile["times_of_day"])),
+            )
+
+        return self._build_generic_template(available)
+
+    def _build_generic_template(self, available: AvailableActivity) -> _ActivityTemplate:
+        description = f"{available.route_description} {available.name}".lower()
+        tags = set(available.tags)
+
+        if "parapente" in description or "avent" in description:
+            tags.update({"aventura", "naturaleza"})
+        if "mirador" in description or "vista" in description:
+            tags.update({"naturaleza", "panorama", "fotografia"})
+        if "caminata" in description or "sender" in description:
+            tags.update({"naturaleza", "bienestar"})
+        if "relaj" in description or "bienestar" in description:
+            tags.update({"bienestar", "relajacion"})
+        if "cultura" in description or "hist" in description:
+            tags.add("cultura")
+        if not tags:
+            tags.add("naturaleza")
+
+        difficulty = available.route_difficulty.lower()
+        if "alta" in difficulty:
+            activity_levels = ["alta"]
+        elif "media" in difficulty or "moder" in difficulty:
+            activity_levels = ["media"]
+        else:
+            activity_levels = ["baja", "media"]
+
+        travel_styles = ["equilibrado"]
+        if "relaj" in description or "bienestar" in description:
+            travel_styles.append("relajado")
+        if "avent" in description or "parapente" in description or "alta" in difficulty:
+            travel_styles.append("aventurero")
+
+        companions = ["familia", "pareja", "amigos", "solo"]
+        budgets = ["economico", "moderado"]
+        if "premium" in description or "lujo" in description:
+            budgets.append("premium")
+
+        times_of_day = ["manana", "tarde"]
+        if "noche" in description or "atardecer" in description or "noct" in description:
+            times_of_day.append("noche")
+
+        summary = (
+            f"{available.name} en {available.route_name}. "
+            f"{available.route_description.strip()}"
+        ).strip()
+
+        travel_styles = list(dict.fromkeys(travel_styles))
+        budgets = list(dict.fromkeys(budgets))
+        times_of_day = list(dict.fromkeys(times_of_day))
+
+        return _ActivityTemplate(
+            name=available.name,
+            summary=summary,
+            location=available.route_name,
+            tags=sorted(tags),
+            travel_styles=travel_styles,
+            activity_levels=activity_levels,
+            companions=companions,
+            budgets=budgets,
+            times_of_day=times_of_day,
+        )
 
     def _score_activity(self, activity: _ActivityTemplate, survey: SurveyPayload) -> float:
         score = 0.0
@@ -259,9 +322,16 @@ def health() -> dict[str, str]:
 def create_recommendations(payload: RecommendationRequest) -> RecommendationResponse:
     if not payload.survey.interests:
         raise HTTPException(status_code=400, detail="Debe indicar al menos un interés")
+    if not payload.available_activities:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe proporcionar las actividades disponibles para el usuario",
+        )
 
     engine = _get_engine()
-    recommendations = engine.recommend(payload.survey)
+    recommendations = engine.recommend(
+        payload.survey, payload.available_activities
+    )
 
     if not recommendations:
         raise HTTPException(status_code=500, detail="No se pudieron generar recomendaciones")

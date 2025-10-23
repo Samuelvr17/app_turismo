@@ -48,12 +48,11 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
             'No pudimos actualizar las recomendaciones en este momento.';
       });
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
       }
-      setState(() {
-        _isRefreshing = false;
-      });
     }
   }
 
@@ -171,7 +170,8 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                       recommendations[index];
                   return _buildRecommendationCard(recommendation);
                 },
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(height: 16),
                 itemCount: recommendations.length,
               ),
             );
@@ -227,7 +227,8 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                       (String tag) => Chip(
                         label: Text(tag),
                         backgroundColor:
-                            theme.colorScheme.secondaryContainer.withOpacity(0.2),
+                            theme.colorScheme.secondaryContainer
+                                .withValues(alpha: 0.2),
                       ),
                     )
                     .toList(),

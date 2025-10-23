@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/activity_recommendation.dart';
 import '../models/activity_survey.dart';
+import '../models/available_activity.dart';
 
 class RecommendationApiException implements Exception {
   RecommendationApiException(this.message);
@@ -36,11 +37,14 @@ class RecommendationApiService {
   Future<List<ActivityRecommendation>> generateRecommendations({
     required String userId,
     required ActivitySurvey survey,
+    required List<AvailableActivity> availableActivities,
   }) async {
     final Uri endpoint = _buildEndpoint('/v1/recommendations');
     final Map<String, dynamic> payload = <String, dynamic>{
       'user_id': userId,
       'survey': survey.toJson(),
+      'availableActivities':
+          availableActivities.map((AvailableActivity item) => item.toJson()).toList(),
     };
 
     final http.Response response = await _httpClient.post(

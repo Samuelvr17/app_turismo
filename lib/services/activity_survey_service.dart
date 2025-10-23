@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/activity_recommendation.dart';
 import '../models/activity_survey.dart';
+import '../models/available_activity.dart';
+import '../models/safe_route.dart';
+import '../data/default_safe_routes.dart';
 import 'recommendation_api_service.dart';
 import 'supabase_service.dart';
 
@@ -16,7 +19,7 @@ class ActivitySurveyService {
   static final ActivitySurveyService instance = ActivitySurveyService._();
 
   final SupabaseClient? _client;
-  RecommendationApiService _apiService;
+  final RecommendationApiService _apiService;
 
   SupabaseClient get _supabaseClient => _client ?? SupabaseService.instance.client;
 
@@ -127,10 +130,14 @@ class ActivitySurveyService {
 
     _surveyNotifier.value = surveyToSave;
 
+    final List<AvailableActivity> availableActivities =
+        await _loadAvailableActivities(userId);
+
     final List<ActivityRecommendation> recommendations =
         await _apiService.generateRecommendations(
       userId: userId,
       survey: surveyToSave,
+      availableActivities: availableActivities,
     );
 
     await _persistRecommendations(userId, recommendations);
@@ -144,8 +151,15 @@ class ActivitySurveyService {
       throw StateError('No se ha completado el cuestionario del usuario.');
     }
 
+    final List<AvailableActivity> availableActivities =
+        await _loadAvailableActivities(userId);
+
     final List<ActivityRecommendation> recommendations =
-        await _apiService.generateRecommendations(userId: userId, survey: survey);
+        await _apiService.generateRecommendations(
+      userId: userId,
+      survey: survey,
+      availableActivities: availableActivities,
+    );
     await _persistRecommendations(userId, recommendations);
     _recommendationsNotifier.value = recommendations;
   }
@@ -191,5 +205,55 @@ class ActivitySurveyService {
       throw StateError('No hay un usuario autenticado configurado.');
     }
     return userId;
+  }
+
+  Future<List<AvailableActivity>> _loadAvailableActivities(String userId) async {
+    List<SafeRoute> routes = <SafeRoute>[];
+
+    try {
+      final List<dynamic> response = await _supabaseClient
+          .from('safe_routes')
+          .select('name, description, difficulty, points_of_interest')
+          .eq('user_id', userId);
+
+      routes = response
+          .map((dynamic item) {
+            final Map<String, dynamic> data =
+                Map<String, dynamic>.from(item as Map<dynamic, dynamic>);
+            return SafeRoute(
+              name: data['name'] as String? ?? '',
+              duration: '',
+              difficulty: data['difficulty'] as String? ?? '',
+              description: data['description'] as String? ?? '',
+              pointsOfInterest: (data['points_of_interest'] as List<dynamic>? ??
+                      <dynamic>[])
+                  .map((dynamic value) => value.toString())
+                  .where((String value) => value.trim().isNotEmpty)
+                  .toList(),
+            );
+          })
+          .where((SafeRoute route) => route.pointsOfInterest.isNotEmpty)
+          .toList();
+    } catch (error) {
+      debugPrint('Error al cargar actividades disponibles: $error');
+    }
+
+    if (routes.isEmpty) {
+      routes = defaultSafeRoutes;
+    }
+
+    final Set<String> seen = <String>{};
+    final List<AvailableActivity> activities = <AvailableActivity>[];
+
+    for (final SafeRoute route in routes) {
+      for (final String activity in route.pointsOfInterest) {
+        final String key = '${route.name}::$activity'.toLowerCase();
+        if (seen.add(key)) {
+          activities.add(AvailableActivity.fromSafeRoute(route, activity));
+        }
+      }
+    }
+
+    return activities;
   }
 }
