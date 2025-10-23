@@ -7,6 +7,7 @@ Una aplicación Flutter para turismo seguro con integración de Supabase.
 - Mapa interactivo con zonas de peligro
 - Rutas seguras para turistas
 - Sistema de reportes con geolocalización
+- Recomendaciones personalizadas de actividades basadas en IA
 - Información del clima en tiempo real
 - Almacenamiento híbrido (local + nube)
 
@@ -90,17 +91,23 @@ flutter run
 lib/
 ├── main.dart                 # Punto de entrada de la aplicación
 ├── models/                   # Modelos de datos
+│   ├── activity_recommendation.dart
+│   ├── activity_survey.dart
 │   ├── report.dart
 │   ├── safe_route.dart
 │   ├── user_preferences.dart
 │   └── weather_data.dart
 ├── services/                 # Servicios de la aplicación
+│   ├── activity_survey_service.dart  # Manejo del cuestionario y recomendaciones
 │   ├── supabase_service.dart      # Cliente de Supabase
 │   ├── storage_service.dart       # Servicio híbrido (recomendado)
 │   ├── local_storage_service.dart # Almacenamiento local
 │   ├── location_service.dart
+│   ├── recommendation_api_service.dart # Cliente HTTP hacia el servicio IA
 │   └── weather_service.dart
 └── widgets/                  # Widgets reutilizables
+    ├── activity_survey_page.dart
+    ├── recommendations_page.dart
     └── weather_card.dart
 ```
 
@@ -140,9 +147,30 @@ El archivo `.env` debe contener:
 ```
 SUPABASE_URL=tu-url-de-supabase
 SUPABASE_ANON_KEY=tu-anon-key-de-supabase
+RECOMMENDATION_API_URL=http://127.0.0.1:8000
 ```
 
 No subas este archivo a control de versiones.
+
+### Servicio de recomendaciones basado en IA
+
+El repositorio incluye una API independiente construida con FastAPI en la carpeta `ai_service/`. Debes ejecutarla aparte de la
+aplicación Flutter.
+
+1. Crea y activa un entorno virtual de Python (opcional pero recomendado).
+2. Instala las dependencias:
+
+   ```bash
+   pip install -r ai_service/requirements.txt
+   ```
+
+3. Ejecuta el servidor:
+
+   ```bash
+   uvicorn ai_service.app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+4. Ajusta `RECOMMENDATION_API_URL` en tu `.env` si utilizas otro host o puerto.
 
 ## Desarrollo
 
