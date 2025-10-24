@@ -63,3 +63,5 @@ por_hacer.txt
 
 # DevTools
 devtools_options.yaml
+
+venv/
