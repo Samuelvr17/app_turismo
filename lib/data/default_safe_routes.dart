@@ -15,4 +15,16 @@ const List<SafeRoute> defaultSafeRoutes = <SafeRoute>[
       'Caminata ecológica',
     ],
   ),
+  SafeRoute(
+    name: 'Vereda Argentina',
+    duration: 'A 20 minutos de Villavicencio',
+    difficulty: 'Naturaleza y aventura',
+    description:
+        '🚴‍♀️ La vereda Argentina combina montañas, paisajes llaneros y caminos '
+        'ideales para disfrutar de actividades al aire libre con toda la familia.',
+    pointsOfInterest: <String>[
+      'Ciclismo',
+      'Caminata',
+    ],
+  ),
 ];
