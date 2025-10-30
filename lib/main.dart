@@ -691,22 +691,41 @@ class RutasSegurasPage extends StatefulWidget {
 }
 
 class _RutasSegurasPageState extends State<RutasSegurasPage> {
-  static const LatLng _veredaBuenavistaLocation =
+  static const LatLng _defaultRouteLocation =
       LatLng(4.157296670026874, -73.68158509824853);
 
-  static const Map<String, List<String>> _activityImages =
-      <String, List<String>>{
-    'Miradores': <String>[
-      'https://images.unsplash.com/photo-1491557345352-5929e343eb89?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
-    ],
-    'Parapente': <String>[
-      'assets/images/parapente/bryan-goff-IuyhXAia8EA-unsplash.jpg',
-    ],
-    'Caminata ecológica': <String>[
-      'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80',
-    ],
+  static const Map<String, LatLng> _routeLocations = <String, LatLng>{
+    'Vereda Buenavista': _defaultRouteLocation,
+    'Vereda Argentina': LatLng(4.201476, -73.638586),
+  };
+
+  static const Map<String, Map<String, List<String>>> _routeActivityImages =
+      <String, Map<String, List<String>>>{
+    'Vereda Buenavista': <String, List<String>>{
+      'Miradores': <String>[
+        'https://images.unsplash.com/photo-1491557345352-5929e343eb89?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
+      ],
+      'Parapente': <String>[
+        'assets/images/vereda-buenavista/parapente/bryan-goff-IuyhXAia8EA-unsplash.jpg',
+      ],
+      'Caminata ecológica': <String>[
+        'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80',
+      ],
+    },
+    'Vereda Argentina': <String, List<String>>{
+      'Ciclismo': <String>[
+        'assets/images/vereda-argentina/arg1.jpg',
+        'assets/images/vereda-argentina/arg2.jpg',
+        'assets/images/vereda-argentina/arg3.jpg',
+      ],
+      'Caminata': <String>[
+        'assets/images/vereda-argentina/arg1.jpg',
+        'assets/images/vereda-argentina/arg2.jpg',
+        'assets/images/vereda-argentina/arg3.jpg',
+      ],
+    },
   };
 
   final SafeRouteLocalDataSource _localDataSource = SafeRouteLocalDataSource();
@@ -837,15 +856,17 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     required SafeRoute route,
     required String activity,
   }) {
-    final List<String> imageUrls =
-        _activityImages[activity] ?? const <String>[];
+    final List<String> imageUrls = _routeActivityImages[route.name]?[activity] ??
+        const <String>[];
+    final LatLng location =
+        _routeLocations[route.name] ?? _defaultRouteLocation;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => SafeRouteActivityDetailPage(
           routeName: route.name,
           activityName: activity,
           routeDescription: route.description,
-          location: _veredaBuenavistaLocation,
+          location: location,
           imageUrls: imageUrls,
         ),
       ),
@@ -1058,7 +1079,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   }
 
   bool _isPanoramaImage(String imageUrl) {
-    return _isParaglidingActivity && !imageUrl.startsWith('http');
+    return !imageUrl.startsWith('http');
   }
 
   Widget _buildPanoramaPreview(BuildContext context, String imageAsset) {
