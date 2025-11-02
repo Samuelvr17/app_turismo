@@ -147,32 +147,8 @@ class SupabaseService implements ReportsRemoteDataSource {
   }
 
   @override
-  Future<void> saveSafeRoutes({
-    required String userId,
-    required List<SafeRoute> routes,
-  }) async {
-    final List<Map<String, dynamic>> data = routes
-        .map((route) => {
-              'user_id': userId,
-              'name': route.name,
-              'duration': route.duration,
-              'difficulty': route.difficulty,
-              'description': route.description,
-              'points_of_interest': route.pointsOfInterest,
-            })
-        .toList();
-
-    await client
-        .from('safe_routes')
-        .upsert(data, onConflict: 'user_id,name');
-  }
-
-  @override
-  Future<List<SafeRoute>> getSafeRoutes({required String userId}) async {
-    final response = await client
-        .from('safe_routes')
-        .select()
-        .eq('user_id', userId);
+  Future<List<SafeRoute>> getSafeRoutes() async {
+    final response = await client.from('safe_routes').select();
 
     return (response as List<dynamic>)
         .map((item) => SafeRoute(

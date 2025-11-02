@@ -131,7 +131,7 @@ class ActivitySurveyService {
     _surveyNotifier.value = surveyToSave;
 
     final List<AvailableActivity> availableActivities =
-        await _loadAvailableActivities(userId);
+        await _loadAvailableActivities();
 
     final List<ActivityRecommendation> recommendations =
         await _apiService.generateRecommendations(
@@ -152,7 +152,7 @@ class ActivitySurveyService {
     }
 
     final List<AvailableActivity> availableActivities =
-        await _loadAvailableActivities(userId);
+        await _loadAvailableActivities();
 
     final List<ActivityRecommendation> recommendations =
         await _apiService.generateRecommendations(
@@ -207,14 +207,13 @@ class ActivitySurveyService {
     return userId;
   }
 
-  Future<List<AvailableActivity>> _loadAvailableActivities(String userId) async {
+  Future<List<AvailableActivity>> _loadAvailableActivities() async {
     List<SafeRoute> routes = <SafeRoute>[];
 
     try {
       final List<dynamic> response = await _supabaseClient
           .from('safe_routes')
-          .select('name, description, difficulty, points_of_interest')
-          .eq('user_id', userId);
+          .select('name, description, difficulty, points_of_interest');
 
       routes = response
           .map((dynamic item) {

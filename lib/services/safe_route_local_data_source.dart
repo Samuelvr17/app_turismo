@@ -8,7 +8,4 @@ class SafeRouteLocalDataSource {
   final StorageService _storage;
 
   Future<List<SafeRoute>> loadRoutes() => _storage.loadSafeRoutes();
-
-  Future<void> saveRoutes(List<SafeRoute> routes) =>
-      _storage.saveSafeRoutes(routes);
 }
