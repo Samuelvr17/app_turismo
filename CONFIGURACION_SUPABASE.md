@@ -124,6 +124,33 @@ Si deseas agregar autenticación y restringir el acceso:
 2. Configura los métodos de autenticación que desees
 3. Modifica las políticas RLS en **Table Editor > (selecciona tabla) > RLS Policies**
 
+### Alta manual de rutas seguras públicas
+
+Las rutas seguras se gestionan de forma centralizada y las aplicaciones cliente solo tienen permisos de lectura. Para crear o actualizar rutas que estén disponibles para todos los usuarios:
+
+1. Entra al proyecto de Supabase y abre **Table editor > safe_routes** o el **SQL Editor**.
+2. Ejecuta un `INSERT ... ON CONFLICT` similar al siguiente ejemplo, ajustando los datos necesarios:
+
+   ```sql
+   insert into safe_routes (name, duration, difficulty, description, points_of_interest)
+   values (
+     'Nombre de la ruta',
+     'Tiempo estimado',
+     'Nivel de dificultad',
+     'Descripción completa de la ruta',
+     array['Punto de interés 1', 'Punto de interés 2']::text[]
+   )
+   on conflict (name) do update
+   set
+     duration = excluded.duration,
+     difficulty = excluded.difficulty,
+     description = excluded.description,
+     points_of_interest = excluded.points_of_interest,
+     updated_at = now();
+   ```
+
+3. Verifica que la ruta aparezca en la tabla `safe_routes`. Cualquier cambio se reflejará inmediatamente en la aplicación.
+
 ## Próximos pasos
 
 Una vez que todo funcione correctamente, puedes:
