@@ -746,23 +746,10 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
         return;
       }
 
-      if (routes.isEmpty) {
-        await _localDataSource.saveRoutes(defaultSafeRoutes);
-
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          _routes = defaultSafeRoutes;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _routes = routes;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _routes = routes.isNotEmpty ? routes : defaultSafeRoutes;
+        _isLoading = false;
+      });
     } catch (_) {
       if (!mounted) {
         return;

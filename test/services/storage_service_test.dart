@@ -35,7 +35,7 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
   }
 
   @override
-  Future<List<SafeRoute>> getSafeRoutes({required String userId}) async {
+  Future<List<SafeRoute>> getSafeRoutes() async {
     return List<SafeRoute>.from(_routes);
   }
 
@@ -62,14 +62,6 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
     );
     _reports.insert(0, report);
     return report;
-  }
-
-  @override
-  Future<void> saveSafeRoutes({
-    required String userId,
-    required List<SafeRoute> routes,
-  }) async {
-    _routes = List<SafeRoute>.from(routes);
   }
 
   @override

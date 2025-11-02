@@ -25,10 +25,5 @@ abstract class ReportsRemoteDataSource {
 
   Future<UserPreferences?> getUserPreferences({required String userId});
 
-  Future<void> saveSafeRoutes({
-    required String userId,
-    required List<SafeRoute> routes,
-  });
-
-  Future<List<SafeRoute>> getSafeRoutes({required String userId});
+  Future<List<SafeRoute>> getSafeRoutes();
 }

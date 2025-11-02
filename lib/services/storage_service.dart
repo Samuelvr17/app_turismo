@@ -45,7 +45,7 @@ class StorageService {
     await Future.wait<void>(<Future<void>>[
       _syncReportsFromSupabase(userId),
       _hydratePreferencesFromSupabase(userId),
-      _hydrateSafeRoutesFromSupabase(userId),
+      _hydrateSafeRoutesFromSupabase(),
     ]);
 
     _isUserInitialized = true;
@@ -83,10 +83,9 @@ class StorageService {
     }
   }
 
-  Future<void> _hydrateSafeRoutesFromSupabase(String userId) async {
+  Future<void> _hydrateSafeRoutesFromSupabase() async {
     try {
-      final List<SafeRoute> routes =
-          await _supabase.getSafeRoutes(userId: userId);
+      final List<SafeRoute> routes = await _supabase.getSafeRoutes();
       await _localStorage.cacheSafeRoutes(routes);
     } catch (e) {
       debugPrint('Error al sincronizar rutas seguras desde Supabase: $e');
@@ -160,11 +159,8 @@ class StorageService {
   Future<List<SafeRoute>> loadSafeRoutes() async {
     await _ensureUserInitialized();
 
-    final String userId = _requiredUserId;
-
     try {
-      final List<SafeRoute> routes =
-          await _supabase.getSafeRoutes(userId: userId);
+      final List<SafeRoute> routes = await _supabase.getSafeRoutes();
       await _localStorage.cacheSafeRoutes(routes);
       return routes;
     } catch (e) {
@@ -172,15 +168,6 @@ class StorageService {
     }
 
     return _localStorage.loadCachedSafeRoutes();
-  }
-
-  Future<void> saveSafeRoutes(List<SafeRoute> routes) async {
-    await _ensureUserInitialized();
-
-    final String userId = _requiredUserId;
-
-    await _supabase.saveSafeRoutes(userId: userId, routes: routes);
-    await _localStorage.cacheSafeRoutes(routes);
   }
 
   Future<void> clearForSignOut() async {
