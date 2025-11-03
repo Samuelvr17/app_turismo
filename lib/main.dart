@@ -25,6 +25,7 @@ import 'widgets/login_page.dart';
 import 'widgets/recommendations_page.dart';
 import 'widgets/weather_card.dart';
 import 'widgets/ar_danger_zone_view.dart';
+import 'widgets/profile_page.dart';
 import 'models/danger_zone.dart';
 
 Future<void> main() async {
@@ -240,6 +241,13 @@ class _MainScaffoldState extends State<MainScaffold> {
       icon: Icons.auto_awesome,
       page: RecommendationsPage(
         key: PageStorageKey<String>('RecommendationsPage'),
+      ),
+    ),
+    _NavigationTab(
+      label: 'Perfil',
+      icon: Icons.person,
+      page: ProfilePage(
+        key: PageStorageKey<String>('ProfilePage'),
       ),
     ),
   ];
