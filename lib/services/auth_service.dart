@@ -157,46 +157,37 @@ class AuthService {
       if (normalizedEmail.isEmpty) {
         throw AuthenticationException('El correo electrónico no puede estar vacío.');
       }
-      if (normalizedEmail != user.email) {
-        updates['email'] = normalizedEmail;
-      }
     }
 
     final String trimmedNewPassword = newPassword?.trim() ?? '';
-    final bool wantsPasswordUpdate = trimmedNewPassword.isNotEmpty;
-    final bool wantsEmailUpdate = normalizedEmail != null && normalizedEmail != user.email;
+    if (trimmedNewPassword.isNotEmpty && trimmedNewPassword.length < 6) {
+      throw AuthenticationException('La contraseña debe tener al menos 6 caracteres.');
+    }
 
-    if (wantsPasswordUpdate || wantsEmailUpdate) {
+    final bool wantsEmailUpdate =
+        normalizedEmail != null && normalizedEmail != user.email;
+    if (wantsEmailUpdate) {
+      updates['email'] = normalizedEmail;
+    }
+
+    final bool wantsPasswordUpdate = trimmedNewPassword.isNotEmpty;
+    final bool requiresPassword = wantsPasswordUpdate || wantsEmailUpdate;
+
+    String? oldHash;
+    if (requiresPassword) {
       final String trimmedCurrentPassword = currentPassword?.trim() ?? '';
       if (trimmedCurrentPassword.isEmpty) {
         throw AuthenticationException('Debes ingresar tu contraseña actual.');
       }
 
-      final Map<String, dynamic>? currentRow = await _supabaseClient
-          .from('app_users')
-          .select('email, password_hash')
-          .eq('id', user.id)
-          .maybeSingle();
+      oldHash = _hashPassword(trimmedCurrentPassword, user.email);
 
-      if (currentRow == null) {
-        throw AuthenticationException('No se pudo actualizar el perfil.');
-      }
-
-      final String currentEmailInDb =
-          (currentRow['email'] as String?)?.toLowerCase() ?? user.email;
-      final String storedPasswordHash = currentRow['password_hash'] as String? ?? '';
-      final String expectedHash =
-          _hashPassword(trimmedCurrentPassword, currentEmailInDb);
-
-      if (expectedHash != storedPasswordHash) {
-        throw AuthenticationException('La contraseña actual no es correcta.');
-      }
-
+      final String emailToPersist = wantsEmailUpdate ? normalizedEmail! : user.email;
       final String passwordForHash =
           wantsPasswordUpdate ? trimmedNewPassword : trimmedCurrentPassword;
-      final String saltEmail = wantsEmailUpdate ? normalizedEmail! : currentEmailInDb;
 
-      updates['password_hash'] = _hashPassword(passwordForHash, saltEmail);
+      updates['password_hash'] =
+          _hashPassword(passwordForHash, emailToPersist);
     }
 
     if (updates.isEmpty) {
@@ -204,14 +195,21 @@ class AuthService {
     }
 
     try {
-      final Map<String, dynamic>? response = await _supabaseClient
+      final PostgrestFilterBuilder<Map<String, dynamic>> query = _supabaseClient
           .from('app_users')
           .update(updates)
-          .eq('id', user.id)
-          .select()
-          .maybeSingle();
+          .eq('id', user.id);
+
+      if (oldHash != null) {
+        query.eq('password_hash', oldHash);
+      }
+
+      final Map<String, dynamic>? response = await query.select().maybeSingle();
 
       if (response == null) {
+        if (oldHash != null) {
+          throw AuthenticationException('La contraseña actual no es correcta.');
+        }
         throw AuthenticationException('No se pudo actualizar el perfil.');
       }
 
