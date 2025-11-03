@@ -131,6 +131,51 @@ class AuthService {
     await _preferences?.remove(_sessionKey);
   }
 
+  Future<AppUser> updateProfile({
+    String? fullName,
+  }) async {
+    await _ensureInitialized();
+
+    final AppUser? user = currentUser;
+    if (user == null) {
+      throw AuthenticationException('No hay una sesión activa.');
+    }
+
+    final Map<String, dynamic> updates = <String, dynamic>{};
+
+    if (fullName != null) {
+      final String trimmedFullName = fullName.trim();
+      updates['full_name'] = trimmedFullName.isEmpty ? null : trimmedFullName;
+    }
+
+    if (updates.isEmpty) {
+      return user;
+    }
+
+    try {
+      final Map<String, dynamic>? response = await _supabaseClient
+          .from('app_users')
+          .update(updates)
+          .eq('id', user.id)
+          .select()
+          .maybeSingle();
+
+      if (response == null) {
+        throw AuthenticationException('No se pudo actualizar el perfil.');
+      }
+
+      final AppUser updatedUser = _mapUser(response);
+      await _persistUser(updatedUser);
+      return updatedUser;
+    } on PostgrestException catch (error) {
+      throw AuthenticationException(
+        error.message.isEmpty
+            ? 'No se pudo actualizar el perfil.'
+            : error.message,
+      );
+    }
+  }
+
   Future<void> _persistUser(AppUser user) async {
     _currentUserNotifier.value = user;
     await _preferences?.setString(
