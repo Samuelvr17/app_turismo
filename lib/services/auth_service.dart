@@ -133,6 +133,9 @@ class AuthService {
 
   Future<AppUser> updateProfile({
     String? fullName,
+    String? email,
+    String? currentPassword,
+    String? newPassword,
   }) async {
     await _ensureInitialized();
 
@@ -146,6 +149,54 @@ class AuthService {
     if (fullName != null) {
       final String trimmedFullName = fullName.trim();
       updates['full_name'] = trimmedFullName.isEmpty ? null : trimmedFullName;
+    }
+
+    String? normalizedEmail;
+    if (email != null) {
+      normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail.isEmpty) {
+        throw AuthenticationException('El correo electrónico no puede estar vacío.');
+      }
+      if (normalizedEmail != user.email) {
+        updates['email'] = normalizedEmail;
+      }
+    }
+
+    final String trimmedNewPassword = newPassword?.trim() ?? '';
+    final bool wantsPasswordUpdate = trimmedNewPassword.isNotEmpty;
+    final bool wantsEmailUpdate = normalizedEmail != null && normalizedEmail != user.email;
+
+    if (wantsPasswordUpdate || wantsEmailUpdate) {
+      final String trimmedCurrentPassword = currentPassword?.trim() ?? '';
+      if (trimmedCurrentPassword.isEmpty) {
+        throw AuthenticationException('Debes ingresar tu contraseña actual.');
+      }
+
+      final Map<String, dynamic>? currentRow = await _supabaseClient
+          .from('app_users')
+          .select('email, password_hash')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (currentRow == null) {
+        throw AuthenticationException('No se pudo actualizar el perfil.');
+      }
+
+      final String currentEmailInDb =
+          (currentRow['email'] as String?)?.toLowerCase() ?? user.email;
+      final String storedPasswordHash = currentRow['password_hash'] as String? ?? '';
+      final String expectedHash =
+          _hashPassword(trimmedCurrentPassword, currentEmailInDb);
+
+      if (expectedHash != storedPasswordHash) {
+        throw AuthenticationException('La contraseña actual no es correcta.');
+      }
+
+      final String passwordForHash =
+          wantsPasswordUpdate ? trimmedNewPassword : trimmedCurrentPassword;
+      final String saltEmail = wantsEmailUpdate ? normalizedEmail! : currentEmailInDb;
+
+      updates['password_hash'] = _hashPassword(passwordForHash, saltEmail);
     }
 
     if (updates.isEmpty) {
@@ -168,6 +219,9 @@ class AuthService {
       await _persistUser(updatedUser);
       return updatedUser;
     } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw AuthenticationException('El correo ya se encuentra registrado.');
+      }
       throw AuthenticationException(
         error.message.isEmpty
             ? 'No se pudo actualizar el perfil.'
