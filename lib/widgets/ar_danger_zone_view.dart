@@ -172,13 +172,61 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
               const SizedBox(height: 8),
               for (final zone in zones) ...<Widget>[
                 Text(
-                  zone.title,
+                  'lugar - ${zone.title}',
                   style: Theme.of(context)
                       .textTheme
                       .bodyLarge
-                      ?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
+                      ?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
+                Text(
+                  'info relevante',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  zone.description,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'peligros del área',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  zone.specificDangers,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'recomendaciones',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  zone.securityRecommendations,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
                 Text(
                   'Radio: ${zone.radius.toStringAsFixed(0)} m | Altura virtual: ${_resolveAltitudeForZone(zone).toStringAsFixed(1)} m',
                   style: Theme.of(context)
