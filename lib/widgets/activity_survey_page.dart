@@ -78,6 +78,38 @@ class _ActivitySurveyPageState extends State<ActivitySurveyPage> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    final ActivitySurvey? initialSurvey =
+        _surveyService.surveyListenable.value;
+
+    if (initialSurvey != null) {
+      _travelStyle = initialSurvey.travelStyle;
+      _activityLevel = initialSurvey.activityLevel;
+      _travelCompanion = initialSurvey.travelCompanions;
+      _budgetLevel = initialSurvey.budgetLevel;
+      _preferredTime = initialSurvey.preferredTimeOfDay;
+      _selectedInterests
+        ..clear()
+        ..addAll(initialSurvey.interests);
+      _notesController.text = initialSurvey.additionalNotes ?? '';
+    } else {
+      final ActivitySurvey defaults = ActivitySurvey.defaults;
+      _travelStyle = defaults.travelStyle;
+      _activityLevel = defaults.activityLevel;
+      _travelCompanion = defaults.travelCompanions;
+      _budgetLevel = defaults.budgetLevel;
+      _preferredTime = defaults.preferredTimeOfDay;
+      if (defaults.interests.isNotEmpty) {
+        _selectedInterests
+          ..clear()
+          ..addAll(defaults.interests);
+      }
+      _notesController.text = '';
+    }
+  }
+
+  @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
