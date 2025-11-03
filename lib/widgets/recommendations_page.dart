@@ -4,6 +4,7 @@ import '../models/activity_recommendation.dart';
 import '../models/activity_survey.dart';
 import '../services/activity_survey_service.dart';
 import '../services/recommendation_api_service.dart';
+import 'activity_survey_page.dart';
 
 class RecommendationsPage extends StatefulWidget {
   const RecommendationsPage({super.key});
@@ -16,6 +17,22 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
   final ActivitySurveyService _surveyService = ActivitySurveyService.instance;
   bool _isRefreshing = false;
   String? _errorMessage;
+
+  Future<void> _openSurveyEditor() async {
+    final bool? surveyUpdated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext context) => ActivitySurveyPage(
+          onCompleted: () {
+            Navigator.of(context).pop(true);
+          },
+        ),
+      ),
+    );
+
+    if (surveyUpdated == true && mounted) {
+      await _refreshRecommendations();
+    }
+  }
 
   Future<void> _refreshRecommendations() async {
     if (!mounted) {
@@ -67,10 +84,21 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                'Completa el cuestionario inicial para recibir recomendaciones personalizadas.',
-                style: theme.textTheme.bodyLarge,
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Completa el cuestionario inicial para recibir recomendaciones personalizadas.',
+                    style: theme.textTheme.bodyLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _openSurveyEditor,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Responder cuestionario'),
+                  ),
+                ],
               ),
             ),
           );
@@ -115,6 +143,12 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                             : const Icon(Icons.refresh),
                         label: const Text('Obtener recomendaciones'),
                       ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _openSurveyEditor,
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Editar cuestionario'),
+                      ),
                       if (_errorMessage != null) ...<Widget>[
                         const SizedBox(height: 12),
                         Text(
@@ -144,6 +178,15 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                           'Recomendaciones para ti',
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _openSurveyEditor,
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Editar cuestionario'),
                           ),
                         ),
                         const SizedBox(height: 8),

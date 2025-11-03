@@ -55,7 +55,8 @@ class ActivitySurveyService {
     try {
       final List<ActivityRecommendation> recommendations =
           await _fetchRecommendations(userId);
-      _recommendationsNotifier.value = recommendations;
+      _recommendationsNotifier.value =
+          List<ActivityRecommendation>.from(recommendations);
     } catch (error) {
       debugPrint('Error al cargar recomendaciones del usuario: $error');
       _recommendationsNotifier.value = <ActivityRecommendation>[];
@@ -141,7 +142,8 @@ class ActivitySurveyService {
     );
 
     await _persistRecommendations(userId, recommendations);
-    _recommendationsNotifier.value = recommendations;
+    _recommendationsNotifier.value =
+        List<ActivityRecommendation>.from(recommendations);
   }
 
   Future<void> refreshRecommendations() async {
@@ -161,7 +163,8 @@ class ActivitySurveyService {
       availableActivities: availableActivities,
     );
     await _persistRecommendations(userId, recommendations);
-    _recommendationsNotifier.value = recommendations;
+    _recommendationsNotifier.value =
+        List<ActivityRecommendation>.from(recommendations);
   }
 
   Future<void> _persistRecommendations(
