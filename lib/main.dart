@@ -329,30 +329,14 @@ class MapaPage extends StatefulWidget {
 class _MapaPageState extends State<MapaPage> {
   static const List<DangerZone> _dangerZones = [
     DangerZone(
-      id: 'centro_historico_villavicencio',
+      id: 'vereda_1',
       center: LatLng(4.1161999958575795, -73.6088337333233),
-      title: 'Centro histórico de Villavicencio',
-      description:
-          'Corredor comercial y peatonal con alta afluencia de visitantes, entidades financieras y comercio informal.',
-      specificDangers:
-          'Se reportan hurtos menores a transeúntes, motociclistas que irrumpen en las zonas peatonales y acumulación de puestos ambulantes que obstaculizan los puntos de evacuación al final de la tarde.',
-      securityRecommendations:
-          'Mantén tus objetos de valor seguros, evita manipular dinero en vía pública, recorre rutas iluminadas después del anochecer y coordina puntos de encuentro en lugares vigilados.',
+      title: 'Vereda 1',
+      description: 'info relevante',
+      specificDangers: 'peligros del área',
+      securityRecommendations: 'recomendaciones',
       radius: 120,
       overlayHeight: 18,
-    ),
-    DangerZone(
-      id: 'terminal_transporte_villavicencio',
-      center: LatLng(4.110716544734726, -73.62999691007467),
-      title: 'Terminal de Transporte de Villavicencio',
-      description:
-          'Nodo de conexión intermunicipal con flujo constante de pasajeros, vendedores informales y parqueaderos improvisados.',
-      specificDangers:
-          'Ocurren robos de equipaje durante el abordaje, ofertas de transporte no autorizado y maniobras continuas de buses y camiones en las bahías de espera.',
-      securityRecommendations:
-          'Compra tus tiquetes únicamente en puntos oficiales, permanece en áreas iluminadas mientras esperas, vigila tu equipaje en todo momento y utiliza servicios de transporte autorizados para tus desplazamientos.',
-      radius: 150,
-      overlayHeight: 22,
     ),
   ];
 
@@ -546,6 +530,7 @@ class _MapaPageState extends State<MapaPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) {
+          final textTheme = Theme.of(context).textTheme;
           return AlertDialog(
             title: const Text('⚠️ Zona de Precaución'),
             content: Column(
@@ -553,22 +538,27 @@ class _MapaPageState extends State<MapaPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  zone.title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'lugar - ${zone.title}',
+                  style: textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
+                Text(
+                  'info relevante',
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 4),
                 Text(zone.description),
                 const SizedBox(height: 12),
                 Text(
-                  'Peligros específicos del área',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  'peligros del área',
+                  style: textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(zone.specificDangers),
                 const SizedBox(height: 12),
                 Text(
-                  'Recomendaciones de seguridad',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  'recomendaciones',
+                  style: textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(zone.securityRecommendations),
