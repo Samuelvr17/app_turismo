@@ -195,7 +195,7 @@ class AuthService {
     }
 
     try {
-      final PostgrestFilterBuilder<Map<String, dynamic>> query = _supabaseClient
+      final query = _supabaseClient
           .from('app_users')
           .update(updates)
           .eq('id', user.id);
