@@ -182,7 +182,7 @@ class AuthService {
 
       oldHash = _hashPassword(trimmedCurrentPassword, user.email);
 
-      final String emailToPersist = wantsEmailUpdate ? normalizedEmail! : user.email;
+      final String emailToPersist = wantsEmailUpdate ? normalizedEmail : user.email;
       final String passwordForHash =
           wantsPasswordUpdate ? trimmedNewPassword : trimmedCurrentPassword;
 
