@@ -15,7 +15,7 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
 
   List<Report> _reports;
   UserPreferences? _preferences;
-  List<SafeRoute> _routes = <SafeRoute>[];
+  final List<SafeRoute> _routes = <SafeRoute>[];
 
   void setReports(List<Report> reports) {
     _reports = List<Report>.from(reports);
