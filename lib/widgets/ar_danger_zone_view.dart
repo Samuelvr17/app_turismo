@@ -1,10 +1,18 @@
 import 'dart:async';
 
+import 'package:ar_flutter_plugin_engine/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_engine/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin_engine/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin_engine/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin_engine/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin_engine/managers/ar_session_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:vector_math/vector_math_64.dart';
 
 import '../models/danger_zone.dart';
 import '../services/location_service.dart';
+import 'ar_danger_zone_overlay.dart';
 
 class ArDangerZoneView extends StatefulWidget {
   const ArDangerZoneView({
@@ -28,6 +36,12 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
 
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
+  ARSessionManager? _arSessionManager;
+  ARObjectManager? _arObjectManager;
+  ARAnchorManager? _arAnchorManager;
+  ARLocationManager? _arLocationManager;
+  bool _arReady = false;
+  String? _arError;
 
   @override
   void initState() {
@@ -53,6 +67,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   @override
   void dispose() {
     _locationService.stateListenable.removeListener(_locationListener);
+    unawaited(_disposeArSession());
     super.dispose();
   }
 
@@ -146,10 +161,82 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     );
   }
 
+  Position? get _effectivePosition => _latestPosition ?? widget.currentPosition;
+
+  Future<void> _onArViewCreated(
+    ARSessionManager arSessionManager,
+    ARObjectManager arObjectManager,
+    ARAnchorManager arAnchorManager,
+    ARLocationManager arLocationManager,
+  ) async {
+    _arSessionManager = arSessionManager;
+    _arObjectManager = arObjectManager;
+    _arAnchorManager = arAnchorManager;
+    _arLocationManager = arLocationManager;
+
+    try {
+      await _arSessionManager?.onInitialize(
+        showAnimatedGuide: false,
+        showFeaturePoints: false,
+        showPlanes: true,
+        showWorldOrigin: false,
+        handleTaps: false,
+        handlePans: false,
+        handleRotation: false,
+        planeDetectionConfig: PlaneDetectionConfig.horizontal,
+      );
+      await _arLocationManager?.startLocationUpdates();
+      _arObjectManager?.onInitialize();
+
+      if (mounted) {
+        setState(() {
+          _arReady = true;
+          _arError = null;
+        });
+      }
+    } catch (error) {
+      _showArError(
+        'No pudimos iniciar la experiencia AR. Continuarás viendo la información en modo seguro.',
+        error,
+      );
+    }
+  }
+
+  void _showArError(String message, [Object? error]) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      setState(() {
+        _arError = message;
+        _arReady = false;
+      });
+    } else {
+      _arError = message;
+      _arReady = false;
+    }
+
+    if (error != null) {
+      debugPrint('AR error: $error');
+    }
+  }
+
+  Future<void> _disposeArSession() async {
+    try {
+      _arLocationManager?.stopLocationUpdates();
+      await _arSessionManager?.dispose();
+    } catch (_) {}
+    _arSessionManager = null;
+    _arObjectManager = null;
+    _arAnchorManager = null;
+    _arLocationManager = null;
+    _arReady = false;
+  }
+
   Widget _buildLegend() {
     final Iterable<DangerZone> zones = _zonesToDisplay();
     return Align(
-      alignment: Alignment.topCenter,
+      alignment: Alignment.bottomCenter,
       child: SafeArea(
         child: Container(
           margin: const EdgeInsets.all(16),
@@ -259,55 +346,110 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     );
   }
 
+  Widget _buildArStatusOverlay(
+    String message, {
+    IconData icon = Icons.info_outline,
+  }) {
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArFallback(String message) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.blue.shade900,
+            Colors.blue.shade700,
+            Colors.blue.shade500,
+          ],
+        ),
+      ),
+      child: _buildArStatusOverlay(
+        message,
+        icon: Icons.camera_alt_outlined,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final Position? position = _effectivePosition;
+    final Iterable<DangerZone> zones = _zonesToDisplay();
+
+    final Widget arLayer = _arError != null
+        ? _buildArFallback(_arError!)
+        : ARView(
+            onARViewCreated: _onArViewCreated,
+            planeDetectionConfig: PlaneDetectionConfig.horizontal,
+          );
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Zonas de peligro'),
-      ),
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.blue.shade900,
-                  Colors.blue.shade700,
-                  Colors.blue.shade500,
-                ],
+          Positioned.fill(child: arLayer),
+          if (_arError != null)
+            _buildArStatusOverlay(
+              'AR no disponible en este dispositivo o falta configuración.',
+              icon: Icons.warning_amber_rounded,
+            ),
+          if (!_arReady && _arError == null)
+            _buildArStatusOverlay(
+              'Inicializando sensores AR...',
+              icon: Icons.photo_camera_back,
+            ),
+          if (_arReady && position != null)
+            ...zones.map(
+              (zone) => ArDangerZoneOverlay(
+                key: ValueKey(zone.id),
+                zone: zone,
+                currentPosition: position,
+                anchorManager: _arAnchorManager,
+                objectManager: _arObjectManager,
+                sessionManager: _arSessionManager,
               ),
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.camera_alt_outlined,
-                    size: 80,
-                    color: Colors.white.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Vista AR no disponible',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'La funcionalidad de realidad aumentada está temporalmente deshabilitada. Puedes ver las zonas de peligro en el panel inferior.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                    ),
-                  ),
-                ],
+          if (position == null)
+            _buildArStatusOverlay(
+              'Esperando ubicación para posicionar las alertas.',
+              icon: Icons.location_searching,
+            ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: SafeArea(
+              child: FloatingActionButton(
+                mini: true,
+                backgroundColor: Colors.black.withValues(alpha: 0.7),
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Icon(Icons.close, color: Colors.white),
               ),
             ),
           ),

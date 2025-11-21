@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/app_user.dart';
 import 'models/activity_survey.dart';
@@ -348,6 +350,7 @@ class _MapaPageState extends State<MapaPage> {
   bool _isLoading = true;
   String? _errorMessage;
   String? _activeZoneId;
+  DangerZone? _activeArZone;
   bool _isShowingDialog = false;
 
   @override
@@ -434,21 +437,30 @@ class _MapaPageState extends State<MapaPage> {
       if (_activeZoneId != null && mounted) {
         setState(() {
           _activeZoneId = null;
+          _activeArZone = null;
         });
+      } else {
+        _activeZoneId = null;
+        _activeArZone = null;
       }
       return;
     }
 
     if (_activeZoneId == zone.id) {
+      if (_activeArZone?.id != zone.id) {
+        _activeArZone = zone;
+      }
       return;
     }
 
     if (mounted) {
       setState(() {
         _activeZoneId = zone.id;
+        _activeArZone = zone;
       });
     } else {
       _activeZoneId = zone.id;
+      _activeArZone = zone;
     }
 
     await _showDangerDialog(zone);
@@ -502,20 +514,71 @@ class _MapaPageState extends State<MapaPage> {
     }
 
     final Set<String> activeZones = _collectNearbyZoneIds(position);
+    if (_activeArZone != null) {
+      activeZones.add(_activeArZone!.id);
+    }
+
+    if (!await _ensureCameraPermission()) {
+      return;
+    }
 
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => ArDangerZoneView(
-          dangerZones: _dangerZones,
-          currentPosition: position,
-          activeZoneIds: activeZones,
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => ArDangerZoneView(
+            dangerZones: _dangerZones,
+            currentPosition: position,
+            activeZoneIds: activeZones,
+          ),
         ),
-      ),
-    );
+      );
+    } on PlatformException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Tu dispositivo no soporta ARCore o falta configuración: ${error.message ?? 'error desconocido'}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo abrir la vista AR: $error'),
+        ),
+      );
+    }
+  }
+
+  Future<bool> _ensureCameraPermission() async {
+    PermissionStatus status = await Permission.camera.status;
+
+    if (!status.isGranted) {
+      status = await Permission.camera.request();
+    }
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Se necesita acceso a la cámara para mostrar la vista en AR.'),
+        ),
+      );
+    }
+
+    return false;
   }
 
   Future<void> _showDangerDialog(DangerZone zone) async {
@@ -565,6 +628,15 @@ class _MapaPageState extends State<MapaPage> {
               ],
             ),
             actions: [
+              TextButton(
+                onPressed: () async {
+                  if (Navigator.of(dialogContext).canPop()) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                  await _openArDangerView();
+                },
+                child: const Text('Ver en AR'),
+              ),
               TextButton(
                 onPressed: () {
                   if (Navigator.of(dialogContext).canPop()) {
