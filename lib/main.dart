@@ -24,7 +24,7 @@ import 'widgets/activity_survey_page.dart';
 import 'widgets/login_page.dart';
 import 'widgets/recommendations_page.dart';
 import 'widgets/weather_card.dart';
-import 'widgets/ar_danger_zone_view.dart';
+import 'screens/ar_danger_zone_screen.dart';
 import 'widgets/profile_page.dart';
 import 'models/danger_zone.dart';
 
@@ -331,10 +331,20 @@ class _MapaPageState extends State<MapaPage> {
     DangerZone(
       id: 'vereda_1',
       center: LatLng(4.1161999958575795, -73.6088337333233),
-      title: 'Vereda 1',
-      description: 'info relevante',
-      specificDangers: 'peligros del área',
-      securityRecommendations: 'recomendaciones',
+      name: 'Vereda 1',
+      summary: 'Camino con pendientes pronunciadas y vegetación densa.',
+      dangers: <String>[
+        'Deslizamientos durante lluvias intensas.',
+        'Visibilidad reducida por neblina en la mañana.',
+      ],
+      precautions: <String>[
+        'Evita acercarte a taludes inestables.',
+        'Verifica el pronóstico del clima antes de salir.',
+      ],
+      recommendations: <String>[
+        'Usa botas con buen agarre y lleva bastón de apoyo.',
+        'Comparte tu ruta con un contacto de confianza.',
+      ],
       radius: 120,
       overlayHeight: 18,
     ),
@@ -348,7 +358,7 @@ class _MapaPageState extends State<MapaPage> {
   bool _isLoading = true;
   String? _errorMessage;
   String? _activeZoneId;
-  bool _isShowingDialog = false;
+  bool _isArScreenOpen = false;
 
   @override
   void initState() {
@@ -435,6 +445,8 @@ class _MapaPageState extends State<MapaPage> {
         setState(() {
           _activeZoneId = null;
         });
+      } else {
+        _activeZoneId = null;
       }
       return;
     }
@@ -451,7 +463,10 @@ class _MapaPageState extends State<MapaPage> {
       _activeZoneId = zone.id;
     }
 
-    await _showDangerDialog(zone);
+    await _openArDangerView(
+      highlightedZoneIds: <String>{zone.id},
+      userPosition: position,
+    );
   }
 
   DangerZone? _findDangerZone(Position position) {
@@ -487,103 +502,55 @@ class _MapaPageState extends State<MapaPage> {
     return ids;
   }
 
-  Future<void> _openArDangerView() async {
-    final Position? position = _currentPosition;
-    if (position == null) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activa la ubicación para abrir la vista de realidad aumentada.'),
-        ),
-      );
+  DangerZone? get _activeZone {
+    if (_activeZoneId == null) {
+      return null;
+    }
+
+    try {
+      return _dangerZones.firstWhere((zone) => zone.id == _activeZoneId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _openArDangerView({
+    Set<String>? highlightedZoneIds,
+    Position? userPosition,
+  }) async {
+    if (_isArScreenOpen) {
       return;
     }
 
-    final Set<String> activeZones = _collectNearbyZoneIds(position);
+    final Position? position = userPosition ?? _currentPosition;
+    final Set<String> activeZones = highlightedZoneIds ??
+        (position != null ? _collectNearbyZoneIds(position) : <String>{});
 
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => ArDangerZoneView(
-          dangerZones: _dangerZones,
-          currentPosition: position,
-          activeZoneIds: activeZones,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showDangerDialog(DangerZone zone) async {
-    if (_isShowingDialog || !mounted) {
-      return;
-    }
-
-    _isShowingDialog = true;
+    setState(() {
+      _isArScreenOpen = true;
+    });
 
     try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          final textTheme = Theme.of(context).textTheme;
-          return AlertDialog(
-            title: const Text('⚠️ Zona de Precaución'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'lugar - ${zone.title}',
-                  style: textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'info relevante',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.description),
-                const SizedBox(height: 12),
-                Text(
-                  'peligros del área',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.specificDangers),
-                const SizedBox(height: 12),
-                Text(
-                  'recomendaciones',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.securityRecommendations),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  if (Navigator.of(dialogContext).canPop()) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                },
-                child: const Text('Entendido'),
-              ),
-            ],
-          );
-        },
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => ARDangerZoneScreen(
+            dangerZones: _dangerZones,
+            highlightedZoneIds: activeZones,
+            userPosition: position,
+          ),
+        ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _isShowingDialog = false;
+          _isArScreenOpen = false;
         });
       } else {
-        _isShowingDialog = false;
+        _isArScreenOpen = false;
       }
     }
   }
@@ -601,6 +568,81 @@ class _MapaPageState extends State<MapaPage> {
           ),
         )
         .toSet();
+  }
+
+  Widget _buildActiveZoneCard(BuildContext context) {
+    final DangerZone? zone = _activeZone;
+    if (zone == null) {
+      return const SizedBox.shrink();
+    }
+
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 96,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surface.withOpacity(0.94),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Zona detectada',
+                style: theme.textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                zone.name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (zone.summary != null) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  zone.summary!,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (zone.dangers.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: zone.dangers
+                      .take(2)
+                      .map(
+                        (danger) => Chip(
+                          label: Text(danger),
+                          avatar: const Icon(Icons.warning_amber_rounded,
+                              color: Colors.amber, size: 18),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.view_in_ar),
+                  onPressed: () => _openArDangerView(
+                    highlightedZoneIds: <String>{zone.id},
+                    userPosition: _currentPosition,
+                  ),
+                  label: const Text('Ver en AR'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -666,6 +708,7 @@ class _MapaPageState extends State<MapaPage> {
     return Stack(
       children: [
         Positioned.fill(child: body),
+        _buildActiveZoneCard(context),
         if (canOpenAr)
           Positioned(
             bottom: 16,

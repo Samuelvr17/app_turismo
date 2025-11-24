@@ -4,13 +4,14 @@ class DangerZone {
   const DangerZone({
     required this.id,
     required this.center,
-    required this.title,
-    required this.description,
-    required this.specificDangers,
-    required this.securityRecommendations,
+    required this.name,
+    required this.dangers,
+    required this.precautions,
+    required this.recommendations,
     this.radius = defaultRadius,
     this.altitude = defaultAltitude,
     this.overlayHeight = defaultOverlayHeight,
+    this.summary,
   });
 
   static const double defaultRadius = 100;
@@ -19,11 +20,12 @@ class DangerZone {
 
   final String id;
   final LatLng center;
-  final String title;
-  final String description;
-  final String specificDangers;
-  final String securityRecommendations;
+  final String name;
+  final List<String> dangers;
+  final List<String> precautions;
+  final List<String> recommendations;
   final double radius;
   final double altitude;
   final double overlayHeight;
+  final String? summary;
 }
