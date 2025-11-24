@@ -1,7 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:arcore_flutter_plugin/arcore_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_updated/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_node.dart';
+import 'package:ar_flutter_plugin_updated/widgets/ar_view.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
@@ -29,10 +38,14 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   final LocationService _locationService = LocationService.instance;
   late final VoidCallback _locationListener;
 
-  ArCoreController? _arCoreController;
+  ARSessionManager? _arSessionManager;
+  ARObjectManager? _arObjectManager;
+  ARAnchorManager? _arAnchorManager;
+  ARLocationManager? _arLocationManager;
   bool _isCheckingSupport = true;
   bool _isSupported = false;
   String? _supportError;
+  bool _isInitializingSession = false;
 
   Position? _latestPosition;
   Set<String> _highlightedZoneIds = <String>{};
@@ -62,22 +75,24 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
 
   @override
   void dispose() {
-    _arCoreController?.dispose();
+    _arSessionManager?.dispose();
+    _arObjectManager?.dispose();
+    _arAnchorManager?.dispose();
+    _arLocationManager?.dispose();
     _locationService.stateListenable.removeListener(_locationListener);
     super.dispose();
   }
 
   Future<void> _checkArSupport() async {
     try {
-      final bool isAvailable = await ArCoreController.checkArCoreAvailability();
-      final bool isInstalled = await ArCoreController.checkIsArCoreInstalled();
+      final bool isSupported = Platform.isAndroid;
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _isSupported = isAvailable && isInstalled && Platform.isAndroid;
+        _isSupported = isSupported;
         _isCheckingSupport = false;
         _supportError = null;
       });
@@ -183,70 +198,96 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     );
   }
 
-  void _onArViewCreated(ArCoreController controller) {
-    _arCoreController = controller;
-    controller.onPlaneTap = _handleOnPlaneTap;
+  Future<void> _onArViewCreated(
+    ARSessionManager arSessionManager,
+    ARObjectManager arObjectManager,
+    ARAnchorManager arAnchorManager,
+    ARLocationManager arLocationManager,
+  ) async {
+    _arSessionManager = arSessionManager;
+    _arObjectManager = arObjectManager;
+    _arAnchorManager = arAnchorManager;
+    _arLocationManager = arLocationManager;
+
+    setState(() {
+      _isInitializingSession = true;
+    });
+
+    await _arSessionManager?.onInitialize(
+      showFeaturePoints: false,
+      showPlanes: true,
+      customPlaneTexturePath: null,
+      showWorldOrigin: false,
+      handleTaps: true,
+      handlePans: false,
+      planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+    );
+
+    await _arObjectManager?.onInitialize();
+
+    _arSessionManager?.onPlaneOrPointTap = _handleOnPlaneOrPointTapped;
+
+    if (mounted) {
+      setState(() {
+        _isInitializingSession = false;
+      });
+    }
   }
 
-  void _handleOnPlaneTap(List<ArCoreHitTestResult> hits) {
-    if (hits.isEmpty || _arCoreController == null) {
+  Future<void> _handleOnPlaneOrPointTapped(List<ARHitTestResult> hits) async {
+    if (hits.isEmpty ||
+        _arAnchorManager == null ||
+        _arObjectManager == null) {
       return;
     }
 
-    final ArCoreHitTestResult hit = hits.first;
-    _addWarningNodes(hit);
-  }
+    final ARHitTestResult hit = hits.first;
+    final ARPlaneAnchor? anchor = await _arAnchorManager?.addAnchor(
+      ARPlaneAnchor(
+        transformation: hit.worldTransform,
+        type: PlaneAnchorType.plane,
+      ),
+    );
 
-  void _addWarningNodes(ArCoreHitTestResult hit) {
-    final ArCoreController? controller = _arCoreController;
-    if (controller == null) {
+    if (anchor == null) {
       return;
     }
 
+    await _addWarningNodes(anchor);
+  }
+
+  Future<void> _addWarningNodes(ARPlaneAnchor anchor) async {
     final Iterable<DangerZone> zones = _zonesToDisplay();
-    final String title =
-        zones.isNotEmpty ? zones.first.name : 'Zona peligrosa';
+    final String title = zones.isNotEmpty ? zones.first.name : 'Zona peligrosa';
 
-    final ArCoreMaterial warningMaterial =
-        ArCoreMaterial(color: Colors.redAccent.withOpacity(0.9));
-
-    final ArCoreNode sphereNode = ArCoreNode(
-      shape: ArCoreSphere(radius: 0.12, materials: <ArCoreMaterial>[warningMaterial]),
-      position: hit.pose.translation,
+    final ARNode warningNode = ARNode(
+      type: NodeType.webGLB,
+      uri:
+          'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Sphere/glTF-Binary/Sphere.glb',
+      scale: vector.Vector3.all(0.15),
+      position: vector.Vector3.zero(),
     );
 
-    final ArCoreNode cubeNode = ArCoreNode(
-      shape: ArCoreCube(
-        materials: <ArCoreMaterial>[
-          ArCoreMaterial(color: Colors.orangeAccent.withOpacity(0.85)),
-        ],
-        size: vector.Vector3.all(0.1),
-      ),
-      position: vector.Vector3(
-        hit.pose.translation.x + 0.2,
-        hit.pose.translation.y,
-        hit.pose.translation.z,
-      ),
-      rotation: hit.pose.rotation,
+    final ARNode cubeNode = ARNode(
+      type: NodeType.webGLB,
+      uri:
+          'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Cube/glTF-Binary/Cube.glb',
+      scale: vector.Vector3.all(0.12),
+      position: vector.Vector3(0.25, 0, 0),
     );
 
-    final ArCoreNode textNode = ArCoreNode(
-      text: ArCoreText(
-        text: title,
-        color: Colors.white,
-        fontSize: 0.08,
-      ),
-      position: vector.Vector3(
-        hit.pose.translation.x,
-        hit.pose.translation.y + 0.25,
-        hit.pose.translation.z,
-      ),
-      rotation: hit.pose.rotation,
+    final ARNode textNode = ARNode(
+      type: NodeType.webGLB,
+      uri:
+          'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/TexturedQuad/glTF-Binary/TexturedQuad.glb',
+      scale: vector.Vector3.all(0.4),
+      position: vector.Vector3(0, 0.25, 0),
+      data: <String, dynamic>{'label': title},
     );
 
-    controller.addArCoreNodeWithAnchor(sphereNode);
-    controller.addArCoreNodeWithAnchor(cubeNode);
-    controller.addArCoreNodeWithAnchor(textNode);
+    await _arObjectManager?.addNode(warningNode, planeAnchor: anchor);
+    await _arObjectManager?.addNode(cubeNode, planeAnchor: anchor);
+    await _arObjectManager?.addNode(textNode, planeAnchor: anchor);
   }
 
   Widget _buildLegend() {
@@ -413,8 +454,21 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
   Widget build(BuildContext context) {
     Widget body;
 
-    if (_isCheckingSupport) {
-      body = const Center(child: CircularProgressIndicator());
+    if (_isCheckingSupport || _isInitializingSession) {
+      body = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const <Widget>[
+          CircularProgressIndicator(),
+          SizedBox(height: 12),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'Inicializando la vista de realidad aumentada...',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      );
     } else if (!_isSupported) {
       body = Center(
         child: Padding(
@@ -448,13 +502,36 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
       body = Stack(
         children: [
           Positioned.fill(
-            child: ArCoreView(
-              onArCoreViewCreated: _onArViewCreated,
-              enableTapRecognizer: true,
-              enablePlaneRenderer: true,
+            child: ARView(
+              planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+              onARViewCreated: _onArViewCreated,
             ),
           ),
           _buildLegend(),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: const <Widget>[
+                  Icon(Icons.touch_app, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Apunta tu cámara hacia una superficie plana y toca para colocar una señal de advertencia en AR.',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       );
     }
