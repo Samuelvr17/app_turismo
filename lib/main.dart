@@ -14,6 +14,7 @@ import 'models/user_preferences.dart';
 import 'models/weather_data.dart';
 import 'data/default_safe_routes.dart';
 import 'services/activity_survey_service.dart';
+import 'services/ar_service.dart';
 import 'services/location_service.dart';
 import 'services/safe_route_local_data_source.dart';
 import 'services/weather_service.dart';
@@ -21,12 +22,13 @@ import 'services/supabase_service.dart';
 import 'services/storage_service.dart';
 import 'services/auth_service.dart';
 import 'widgets/activity_survey_page.dart';
+import 'widgets/ar_danger_view.dart';
 import 'widgets/login_page.dart';
 import 'widgets/recommendations_page.dart';
 import 'widgets/weather_card.dart';
-import 'widgets/ar_danger_zone_view.dart';
 import 'widgets/profile_page.dart';
 import 'models/danger_zone.dart';
+import 'data/danger_zones.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -327,18 +329,7 @@ class MapaPage extends StatefulWidget {
 }
 
 class _MapaPageState extends State<MapaPage> {
-  static const List<DangerZone> _dangerZones = [
-    DangerZone(
-      id: 'vereda_1',
-      center: LatLng(4.1161999958575795, -73.6088337333233),
-      title: 'Vereda 1',
-      description: 'info relevante',
-      specificDangers: 'peligros del área',
-      securityRecommendations: 'recomendaciones',
-      radius: 120,
-      overlayHeight: 18,
-    ),
-  ];
+  static const List<DangerZone> _dangerZones = kDangerZones;
 
   final LocationService _locationService = LocationService.instance;
   late final VoidCallback _locationListener;
@@ -470,6 +461,44 @@ class _MapaPageState extends State<MapaPage> {
     return null;
   }
 
+  DangerZone? _resolveCurrentZone() {
+    final Position? position = _currentPosition;
+    if (position != null) {
+      final DangerZone? zone = _findDangerZone(position);
+      if (zone != null) {
+        return zone;
+      }
+    }
+
+    if (_activeZoneId != null) {
+      try {
+        return _dangerZones
+            .firstWhere((DangerZone element) => element.id == _activeZoneId);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _openArForZone(DangerZone zone) async {
+    if (!mounted) {
+      return;
+    }
+
+    final bool allowed = await ARService.instance.ensureCameraPermission(context);
+    if (!allowed || !mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ARDangerView(zone: zone),
+      ),
+    );
+  }
+
   Set<String> _collectNearbyZoneIds(Position position) {
     final Set<String> ids = <String>{};
     for (final zone in _dangerZones) {
@@ -488,34 +517,20 @@ class _MapaPageState extends State<MapaPage> {
   }
 
   Future<void> _openArDangerView() async {
-    final Position? position = _currentPosition;
-    if (position == null) {
-      if (!mounted) {
-        return;
+    final DangerZone? zone = _resolveCurrentZone();
+
+    if (zone == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Acércate a una zona de peligro para activar la vista AR.'),
+          ),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activa la ubicación para abrir la vista de realidad aumentada.'),
-        ),
-      );
       return;
     }
 
-    final Set<String> activeZones = _collectNearbyZoneIds(position);
-
-    if (!mounted) {
-      return;
-    }
-
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => ArDangerZoneView(
-          dangerZones: _dangerZones,
-          currentPosition: position,
-          activeZoneIds: activeZones,
-        ),
-      ),
-    );
+    await _openArForZone(zone);
   }
 
   Future<void> _showDangerDialog(DangerZone zone) async {
@@ -565,6 +580,14 @@ class _MapaPageState extends State<MapaPage> {
               ],
             ),
             actions: [
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _openArForZone(zone);
+                },
+                icon: const Icon(Icons.view_in_ar),
+                label: const Text('Ver en AR'),
+              ),
               TextButton(
                 onPressed: () {
                   if (Navigator.of(dialogContext).canPop()) {
@@ -1018,6 +1041,55 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     ];
   }
 
+  DangerZone? get _nearestDangerZone {
+    double? shortestDistance;
+    DangerZone? closest;
+
+    for (final DangerZone zone in kDangerZones) {
+      final double distance = Geolocator.distanceBetween(
+        widget.location.latitude,
+        widget.location.longitude,
+        zone.center.latitude,
+        zone.center.longitude,
+      );
+
+      if (distance <= zone.radius + 300) {
+        if (shortestDistance == null || distance < shortestDistance) {
+          shortestDistance = distance;
+          closest = zone;
+        }
+      }
+    }
+
+    return closest;
+  }
+
+  Future<void> _openArFromDetail() async {
+    final DangerZone? zone = _nearestDangerZone;
+
+    if (zone == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay zonas de peligro cercanas para mostrar en AR en este sitio.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final bool allowed = await ARService.instance.ensureCameraPermission(context);
+    if (!allowed || !mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ARDangerView(zone: zone),
+      ),
+    );
+  }
+
   Widget _buildImageCarousel(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1402,6 +1474,13 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
           ],
         ),
       ),
+      floatingActionButton: _nearestDangerZone != null
+          ? FloatingActionButton.extended(
+              onPressed: _openArFromDetail,
+              icon: const Icon(Icons.view_in_ar),
+              label: const Text('Ver en AR'),
+            )
+          : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
