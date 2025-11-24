@@ -526,6 +526,20 @@ class _MapaPageState extends State<MapaPage> {
     _isShowingDialog = true;
 
     try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => ArDangerZoneView(
+            dangerZones: _dangerZones,
+            currentPosition: _currentPosition,
+            activeZoneIds: {zone.id},
+          ),
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
