@@ -6,10 +6,13 @@ class PermissionService {
   static final PermissionService instance = PermissionService._();
 
   bool isPermissionGranted(PermissionStatus status) {
-    return status.isGranted || status.isLimited || status == PermissionStatus.provisional;
+    return status == PermissionStatus.granted ||
+        status == PermissionStatus.limited ||
+        status == PermissionStatus.provisional;
   }
 
-  bool isPermanentlyDenied(PermissionStatus status) => status.isPermanentlyDenied;
+  bool isPermanentlyDenied(PermissionStatus status) =>
+      status == PermissionStatus.permanentlyDenied;
 
   Future<PermissionStatus> requestLocationWhenInUse() {
     return _requestPermission(Permission.locationWhenInUse);
@@ -32,7 +35,7 @@ class PermissionService {
   }
 
   Future<bool> openAppSettingsIfNeeded(PermissionStatus status) async {
-    if (status.isPermanentlyDenied) {
+    if (isPermanentlyDenied(status)) {
       return openAppSettings();
     }
     return true;
@@ -47,6 +50,8 @@ class PermissionService {
   }
 
   bool _shouldRequest(PermissionStatus status) {
-    return status.isDenied || status.isRestricted || status.isLimited;
+    return status == PermissionStatus.denied ||
+        status == PermissionStatus.restricted ||
+        status == PermissionStatus.limited;
   }
 }

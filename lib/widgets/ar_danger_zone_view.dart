@@ -2,6 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin/models/ar_node.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
@@ -90,9 +97,11 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
         _errorMessage = null;
       });
     } else {
+      final bool permanentlyDenied =
+          _permissionService.isPermanentlyDenied(status);
       setState(() {
         _cameraGranted = false;
-        _errorMessage = status.isPermanentlyDenied
+        _errorMessage = permanentlyDenied
             ? 'Habilita el permiso de cámara en la configuración del dispositivo para usar la vista AR.'
             : 'El permiso de cámara es necesario para mostrar la vista de realidad aumentada.';
       });
@@ -301,7 +310,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black.withOpacity(0.8),
+      backgroundColor: Colors.black.withValues(alpha: 0.8),
       builder: (BuildContext context) {
         final textTheme = Theme.of(context).textTheme;
         final double? distance = _distanceToZone(zone);
@@ -385,7 +394,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -536,7 +545,7 @@ class _ArDangerZoneViewState extends State<ArDangerZoneView> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

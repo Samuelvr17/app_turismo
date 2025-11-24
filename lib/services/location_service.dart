@@ -123,9 +123,7 @@ class LocationService {
       }
 
       final Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best,
-        ),
+        desiredAccuracy: LocationAccuracy.best,
       );
 
       _stateNotifier.value = LocationState(
