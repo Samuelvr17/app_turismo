@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/app_user.dart';
 import 'models/activity_survey.dart';
@@ -329,12 +330,27 @@ class MapaPage extends StatefulWidget {
 class _MapaPageState extends State<MapaPage> {
   static const List<DangerZone> _dangerZones = [
     DangerZone(
-      id: 'vereda_1',
-      center: LatLng(4.1161999958575795, -73.6088337333233),
-      title: 'Vereda 1',
-      description: 'info relevante',
-      specificDangers: 'peligros del área',
-      securityRecommendations: 'recomendaciones',
+      id: 'vereda_buenavista',
+      name: 'Vereda Buenavista',
+      latitude: 4.1161999958575795,
+      longitude: -73.6088337333233,
+      description:
+          'Sector con pendientes pronunciadas y pasos estrechos que pueden verse afectados por lluvia.',
+      dangers: <String>[
+        'Deslizamientos superficiales en época de lluvia.',
+        'Poca visibilidad en la madrugada y al atardecer.',
+        'Tránsito de ciclistas y motocicletas en alta velocidad.',
+      ],
+      precautions: <String>[
+        'Evita acercarte a bordes sin protección.',
+        'Usa calzado antideslizante y linterna frontal al anochecer.',
+        'Circula por el costado derecho y mantente atento al tráfico.',
+      ],
+      recommendations: <String>[
+        'Consulta el pronóstico del tiempo antes de iniciar el recorrido.',
+        'Lleva silbato o medio de señalización sonora.',
+        'Activa el modo sin conexión del mapa para continuar navegando.',
+      ],
       radius: 120,
       overlayHeight: 18,
     ),
@@ -349,6 +365,7 @@ class _MapaPageState extends State<MapaPage> {
   String? _errorMessage;
   String? _activeZoneId;
   bool _isShowingDialog = false;
+  final Set<String> _notifiedZoneIds = <String>{};
 
   @override
   void initState() {
@@ -451,7 +468,10 @@ class _MapaPageState extends State<MapaPage> {
       _activeZoneId = zone.id;
     }
 
-    await _showDangerDialog(zone);
+    if (!_notifiedZoneIds.contains(zone.id)) {
+      _notifiedZoneIds.add(zone.id);
+      await _showDangerDialog(zone);
+    }
   }
 
   DangerZone? _findDangerZone(Position position) {
@@ -487,7 +507,17 @@ class _MapaPageState extends State<MapaPage> {
     return ids;
   }
 
-  Future<void> _openArDangerView() async {
+  Future<bool> _ensureCameraPermission() async {
+    final PermissionStatus status = await Permission.camera.status;
+    if (status.isGranted) {
+      return true;
+    }
+
+    final PermissionStatus result = await Permission.camera.request();
+    return result.isGranted;
+  }
+
+  Future<void> _openArDangerView({Set<String>? focusZoneIds}) async {
     final Position? position = _currentPosition;
     if (position == null) {
       if (!mounted) {
@@ -501,7 +531,20 @@ class _MapaPageState extends State<MapaPage> {
       return;
     }
 
-    final Set<String> activeZones = _collectNearbyZoneIds(position);
+    if (!await _ensureCameraPermission()) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Necesitas habilitar la cámara para usar la vista AR.'),
+        ),
+      );
+      return;
+    }
+
+    final Set<String> activeZones =
+        focusZoneIds ?? _collectNearbyZoneIds(position);
 
     if (!mounted) {
       return;
@@ -532,37 +575,80 @@ class _MapaPageState extends State<MapaPage> {
         builder: (dialogContext) {
           final textTheme = Theme.of(context).textTheme;
           return AlertDialog(
-            title: const Text('⚠️ Zona de Precaución'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'lugar - ${zone.title}',
-                  style: textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'info relevante',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.description),
-                const SizedBox(height: 12),
-                Text(
-                  'peligros del área',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.specificDangers),
-                const SizedBox(height: 12),
-                Text(
-                  'recomendaciones',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.securityRecommendations),
-              ],
+            title: const Text('⚠️ Zona Peligrosa Detectada'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    zone.name,
+                    style:
+                        textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  if (zone.description != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      zone.description!,
+                      style: textTheme.bodyMedium,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'Peligros detectados',
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  ...zone.dangers.map(
+                    (danger) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• '),
+                          Expanded(child: Text(danger)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Precauciones',
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  ...zone.precautions.map(
+                    (precaution) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• '),
+                          Expanded(child: Text(precaution)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Recomendaciones',
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  ...zone.recommendations.map(
+                    (recommendation) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• '),
+                          Expanded(child: Text(recommendation)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -571,7 +657,17 @@ class _MapaPageState extends State<MapaPage> {
                     Navigator.of(dialogContext).pop();
                   }
                 },
-                child: const Text('Entendido'),
+                child: const Text('Cerrar'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (Navigator.of(dialogContext).canPop()) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                  _openArDangerView(focusZoneIds: <String>{zone.id});
+                },
+                icon: const Icon(Icons.view_in_ar),
+                label: const Text('Ver en AR'),
               ),
             ],
           );
