@@ -35,18 +35,18 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_maps_flutter: ^2.13.1
-  geolocator: ^14.0.2
-  permission_handler: ^12.0.1
+  ar_flutter_plugin: ^0.7.3
+  geolocator: ^13.0.1
+  permission_handler: ^11.3.1
   shared_preferences: ^2.5.3
   hive_ce: ^2.14.0
   hive_ce_flutter: ^2.3.2
   http: ^1.5.0
-  supabase_flutter: ^2.10.3
+  supabase_flutter: ^2.6.0
   flutter_dotenv: ^6.0.0
   crypto: ^3.0.6
   panorama_viewer: ^2.0.7
   sensors_plus: ^5.0.1
-  # ar_flutter_plugin: ^0.7.3  # Temporalmente deshabilitado por problemas de compatibilidad
 
 dev_dependencies:
   flutter_test:

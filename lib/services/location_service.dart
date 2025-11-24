@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'permission_service.dart';
+
 class LocationState {
   const LocationState({
     this.isLoading = false,
@@ -38,6 +40,7 @@ class LocationService {
 
   static final LocationService instance = LocationService._();
 
+  final PermissionService _permissionService = PermissionService.instance;
   final ValueNotifier<LocationState> _stateNotifier =
       ValueNotifier<LocationState>(const LocationState());
 
@@ -48,7 +51,7 @@ class LocationService {
 
   ValueListenable<LocationState> get stateListenable => _stateNotifier;
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool requireBackground = false}) async {
     if (_isInitializing) {
       return;
     }
@@ -73,13 +76,9 @@ class LocationService {
       }
 
       PermissionStatus permissionStatus =
-          await Permission.locationWhenInUse.status;
+          await _permissionService.requestLocationWhenInUse();
 
-      if (permissionStatus.isDenied || permissionStatus.isRestricted) {
-        permissionStatus = await Permission.locationWhenInUse.request();
-      }
-
-      if (permissionStatus.isPermanentlyDenied) {
+      if (_permissionService.isPermanentlyDenied(permissionStatus)) {
         _stateNotifier.value = const LocationState(
           isLoading: false,
           position: null,
@@ -89,7 +88,7 @@ class LocationService {
         return;
       }
 
-      if (!permissionStatus.isGranted) {
+      if (!_permissionService.isPermissionGranted(permissionStatus)) {
         _stateNotifier.value = const LocationState(
           isLoading: false,
           position: null,
@@ -97,6 +96,30 @@ class LocationService {
               'Los permisos de ubicación son necesarios para mostrar tu posición.',
         );
         return;
+      }
+
+      if (requireBackground) {
+        permissionStatus = await _permissionService.requestLocationAlways();
+
+        if (_permissionService.isPermanentlyDenied(permissionStatus)) {
+          _stateNotifier.value = const LocationState(
+            isLoading: false,
+            position: null,
+            errorMessage:
+                'Habilita el acceso a ubicación siempre desde la configuración del dispositivo.',
+          );
+          return;
+        }
+
+        if (!_permissionService.isPermissionGranted(permissionStatus)) {
+          _stateNotifier.value = const LocationState(
+            isLoading: false,
+            position: null,
+            errorMessage:
+                'Se requiere acceso a la ubicación en segundo plano para alertarte a tiempo.',
+          );
+          return;
+        }
       }
 
       final Position position = await Geolocator.getCurrentPosition(
@@ -139,6 +162,13 @@ class LocationService {
         position: null,
         errorMessage:
             'No se pudo acceder a la ubicación. Revisa los permisos concedidos.',
+      );
+    } on LocationServiceDisabledException {
+      _stateNotifier.value = const LocationState(
+        isLoading: false,
+        position: null,
+        errorMessage:
+            'Activa los servicios de ubicación para obtener tu posición en tiempo real.',
       );
     } catch (error) {
       _stateNotifier.value = LocationState(

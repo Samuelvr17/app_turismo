@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/app_user.dart';
 import 'models/activity_survey.dart';
@@ -15,6 +16,7 @@ import 'models/weather_data.dart';
 import 'data/default_safe_routes.dart';
 import 'services/activity_survey_service.dart';
 import 'services/location_service.dart';
+import 'services/permission_service.dart';
 import 'services/safe_route_local_data_source.dart';
 import 'services/weather_service.dart';
 import 'services/supabase_service.dart';
@@ -341,6 +343,7 @@ class _MapaPageState extends State<MapaPage> {
   ];
 
   final LocationService _locationService = LocationService.instance;
+  final PermissionService _permissionService = PermissionService.instance;
   late final VoidCallback _locationListener;
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -372,7 +375,7 @@ class _MapaPageState extends State<MapaPage> {
     }
 
     _locationService.stateListenable.addListener(_locationListener);
-    unawaited(_locationService.initialize());
+    unawaited(_locationService.initialize(requireBackground: true));
   }
 
   @override
@@ -451,6 +454,7 @@ class _MapaPageState extends State<MapaPage> {
       _activeZoneId = zone.id;
     }
 
+    unawaited(_ensureNotificationPermission());
     await _showDangerDialog(zone);
   }
 
@@ -501,6 +505,11 @@ class _MapaPageState extends State<MapaPage> {
       return;
     }
 
+    final bool permissionsReady = await _ensureArPermissions();
+    if (!permissionsReady) {
+      return;
+    }
+
     final Set<String> activeZones = _collectNearbyZoneIds(position);
 
     if (!mounted) {
@@ -518,6 +527,74 @@ class _MapaPageState extends State<MapaPage> {
     );
   }
 
+  Future<bool> _ensureArPermissions() async {
+    final PermissionStatus cameraStatus =
+        await _permissionService.requestCameraPermission();
+    if (!_permissionService.isPermissionGranted(cameraStatus)) {
+      _showPermissionSnack(
+        cameraStatus.isPermanentlyDenied
+            ? 'Habilita el permiso de cámara en la configuración del dispositivo para abrir la vista AR.'
+            : 'El permiso de cámara es necesario para mostrar la vista AR.',
+        cameraStatus,
+      );
+      return false;
+    }
+
+    final PermissionStatus locationStatus =
+        await _permissionService.requestLocationWhenInUse();
+    if (!_permissionService.isPermissionGranted(locationStatus)) {
+      _showPermissionSnack(
+        'Otorga permisos de ubicación para mostrar tu posición en la vista AR.',
+        locationStatus,
+      );
+      return false;
+    }
+
+    final PermissionStatus backgroundStatus =
+        await _permissionService.requestLocationAlways();
+    if (!_permissionService.isPermissionGranted(backgroundStatus)) {
+      _showPermissionSnack(
+        'Activa la ubicación en segundo plano para recibir alertas continuas en zonas de peligro.',
+        backgroundStatus,
+        persistent: false,
+      );
+    }
+
+    return true;
+  }
+
+  Future<void> _ensureNotificationPermission() async {
+    final PermissionStatus status =
+        await _permissionService.requestNotificationPermission();
+    if (_permissionService.isPermanentlyDenied(status)) {
+      _showPermissionSnack(
+        'Habilita las notificaciones en la configuración para recibir alertas de zonas de peligro.',
+        status,
+      );
+    }
+  }
+
+  void _showPermissionSnack(String message, PermissionStatus status,
+      {bool persistent = true}) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: status.isPermanentlyDenied
+            ? SnackBarAction(
+                label: 'Configurar',
+                onPressed: () =>
+                    _permissionService.openAppSettingsIfNeeded(status),
+              )
+            : null,
+        duration:
+            persistent ? const Duration(seconds: 5) : const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _showDangerDialog(DangerZone zone) async {
     if (_isShowingDialog || !mounted) {
       return;
@@ -526,54 +603,95 @@ class _MapaPageState extends State<MapaPage> {
     _isShowingDialog = true;
 
     try {
-      await showDialog<void>(
+      await showModalBottomSheet<void>(
         context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          final textTheme = Theme.of(context).textTheme;
-          return AlertDialog(
-            title: const Text('⚠️ Zona de Precaución'),
-            content: Column(
+        isScrollControlled: true,
+        builder: (BuildContext dialogContext) {
+          final textTheme = Theme.of(dialogContext).textTheme;
+          final double bottomPadding =
+              MediaQuery.of(dialogContext).padding.bottom + 16;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'lugar - ${zone.title}',
-                  style: textTheme.titleMedium,
+                Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        zone.title,
+                        style: textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text('${zone.radius.toStringAsFixed(0)} m'),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'info relevante',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.description),
                 const SizedBox(height: 12),
                 Text(
-                  'peligros del área',
-                  style: textTheme.titleSmall,
+                  zone.description,
+                  style: textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 4),
-                Text(zone.specificDangers),
                 const SizedBox(height: 12),
                 Text(
-                  'recomendaciones',
-                  style: textTheme.titleSmall,
+                  'Peligros del área',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 4),
-                Text(zone.securityRecommendations),
+                const SizedBox(height: 6),
+                Text(zone.specificDangers, style: textTheme.bodyMedium),
+                const SizedBox(height: 12),
+                Text(
+                  'Recomendaciones',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text(zone.securityRecommendations, style: textTheme.bodyMedium),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _ensureNotificationPermission,
+                      icon: const Icon(Icons.notifications_active_outlined),
+                      label: const Text('Activar notificaciones'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _permissionService.requestLocationAlways(),
+                      icon: const Icon(Icons.location_on_outlined),
+                      label: const Text('Mejorar precisión'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Cerrar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          unawaited(_openArDangerView());
+                        },
+                        icon: const Icon(Icons.camera_outlined),
+                        label: const Text('Abrir vista AR'),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  if (Navigator.of(dialogContext).canPop()) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                },
-                child: const Text('Entendido'),
-              ),
-            ],
           );
         },
       );
