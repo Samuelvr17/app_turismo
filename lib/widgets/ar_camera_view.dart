@@ -74,13 +74,13 @@ class _ArCameraViewState extends State<ArCameraView> {
 
     try {
       final List<CameraDescription> cameras = await availableCameras();
-      final CameraDescription? selectedCamera = cameras.firstWhere(
+      final CameraDescription selectedCamera = cameras.firstWhere(
         (camera) => camera.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.isNotEmpty ? cameras.first : throw StateError('No hay cámaras disponibles'),
       );
 
       final CameraController controller = CameraController(
-        selectedCamera!,
+        selectedCamera,
         ResolutionPreset.medium,
         enableAudio: false,
       );
