@@ -57,7 +57,7 @@ class DangerZoneAlertDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _badgeColor().withOpacity(0.15),
+                    color: _badgeColor().withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _badgeColor()),
                   ),
