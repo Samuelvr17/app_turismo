@@ -599,8 +599,8 @@ class _MapaPageState extends State<MapaPage> {
             circleId: CircleId(zone.id),
             center: zone.center,
             radius: zone.radius,
-            fillColor: _zoneColor(zone).withAlpha(51),
-            strokeColor: _zoneColor(zone).withAlpha(128),
+            fillColor: _zoneColor(zone).withValues(alpha: 0.2),
+            strokeColor: _zoneColor(zone).withValues(alpha: 0.5),
             strokeWidth: 2,
           ),
         )
@@ -678,7 +678,7 @@ class _MapaPageState extends State<MapaPage> {
             left: 16,
             right: 16,
             child: Material(
-              color: Colors.red.withOpacity(0.1),
+              color: Colors.red.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -1776,7 +1776,7 @@ class _ReportesPageState extends State<ReportesPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest
-            .withAlpha((0.6 * 255).round()),
+            .withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
