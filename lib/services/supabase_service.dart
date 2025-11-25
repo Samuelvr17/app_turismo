@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import '../models/danger_zone.dart';
+import '../models/danger_zone_point.dart';
 import '../models/report.dart';
 import '../models/safe_route.dart';
 import '../models/user_preferences.dart';
@@ -160,6 +162,40 @@ class SupabaseService implements ReportsRemoteDataSource {
                   .map((e) => e.toString())
                   .toList(),
             ))
+        .toList();
+  }
+
+  Future<List<DangerZonePoint>> getDangerZonePoints({
+    required String dangerZoneId,
+  }) async {
+    final dynamic response = await client
+        .from('danger_zone_points')
+        .select()
+        .eq('danger_zone_id', dangerZoneId)
+        .order('created_at');
+
+    if (response is! List<dynamic> || response.isEmpty) {
+      return const <DangerZonePoint>[];
+    }
+
+    return response
+        .map((dynamic item) =>
+            DangerZonePoint.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<DangerZone>> getDangerZonesWithPoints() async {
+    final dynamic response = await client
+        .from('danger_zones')
+        .select('*, danger_zone_points(*)')
+        .order('updated_at', ascending: false);
+
+    if (response is! List<dynamic> || response.isEmpty) {
+      return const <DangerZone>[];
+    }
+
+    return response
+        .map((dynamic item) => DangerZone.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 }

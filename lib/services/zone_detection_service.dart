@@ -11,18 +11,7 @@ class ZoneDetectionService {
   final SupabaseService _supabase;
 
   Future<List<DangerZone>> loadDangerZones() async {
-    final response = await _supabase.client
-        .from('danger_zones')
-        .select()
-        .order('updated_at', ascending: false);
-
-    if (response is! List<dynamic> || response.isEmpty) {
-      return const <DangerZone>[];
-    }
-
-    return response
-        .map((item) => DangerZone.fromJson(item as Map<String, dynamic>))
-        .toList();
+    return _supabase.getDangerZonesWithPoints();
   }
 
   DangerZone? findDangerZone({

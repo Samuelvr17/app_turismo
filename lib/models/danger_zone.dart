@@ -1,5 +1,7 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'danger_zone_point.dart';
+
 enum DangerLevel { high, medium, low }
 
 class DangerZone {
@@ -12,6 +14,7 @@ class DangerZone {
     required this.precautions,
     required this.securityRecommendations,
     required this.level,
+    this.points = const <DangerZonePoint>[],
     this.radius = defaultRadius,
     this.altitude = defaultAltitude,
     this.overlayHeight = defaultOverlayHeight,
@@ -28,6 +31,7 @@ class DangerZone {
   final String specificDangers;
   final String precautions;
   final String securityRecommendations;
+  final List<DangerZonePoint> points;
   final double radius;
   final double altitude;
   final double overlayHeight;
@@ -46,6 +50,12 @@ class DangerZone {
 
     final double latitude = (json['latitude'] as num?)?.toDouble() ?? 0;
     final double longitude = (json['longitude'] as num?)?.toDouble() ?? 0;
+    final List<dynamic> rawPoints =
+        (json['points'] as List<dynamic>? ?? json['danger_zone_points'] as List<dynamic>? ?? <dynamic>[]);
+    final List<DangerZonePoint> points = rawPoints
+        .map((dynamic item) =>
+            DangerZonePoint.fromJson(item as Map<String, dynamic>))
+        .toList();
 
     return DangerZone(
       id: json['id'].toString(),
@@ -59,6 +69,7 @@ class DangerZone {
           json['recommendations'] as String? ??
               'Permanece alerta y evita áreas sin iluminación.',
       level: level,
+      points: points,
       radius: (json['radius'] as num?)?.toDouble() ?? defaultRadius,
       altitude: (json['altitude'] as num?)?.toDouble() ?? defaultAltitude,
       overlayHeight: (json['overlay_height'] as num?)?.toDouble() ?? defaultOverlayHeight,

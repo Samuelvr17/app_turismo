@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../models/danger_zone.dart';
+import '../models/danger_zone_point.dart';
 import '../services/ar_calculation_service.dart';
 
 class ArCameraView extends StatefulWidget {
@@ -28,6 +29,7 @@ class ArCameraView extends StatefulWidget {
 
 class _ArCameraViewState extends State<ArCameraView> {
   final ArCalculationService _arService = const ArCalculationService();
+  static const double _overlayMinDistanceMeters = 200;
 
   CameraController? _cameraController;
   StreamSubscription<Position>? _positionSubscription;
@@ -159,24 +161,39 @@ class _ArCameraViewState extends State<ArCameraView> {
     }
   }
 
-  List<DangerZone> _zonesWithinRadius() {
+  List<_PointContext> _pointsWithinRadius({double radiusInMeters = 1200}) {
     final Position? userPosition = _userPosition;
     if (userPosition == null) {
-      return const <DangerZone>[];
+      return const <_PointContext>[];
     }
+
     final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
-    final List<DangerZone> filtered = widget.dangerZones.where((zone) {
-      final double distance = _arService.calculateDistance(userLatLng, zone.center);
-      return distance <= 1000;
-    }).toList();
+    final List<_PointContext> contexts = <_PointContext>[];
 
-    filtered.sort((DangerZone a, DangerZone b) {
-      final double distanceA = _arService.calculateDistance(userLatLng, a.center);
-      final double distanceB = _arService.calculateDistance(userLatLng, b.center);
-      return distanceA.compareTo(distanceB);
-    });
+    for (final DangerZone zone in widget.dangerZones) {
+      for (final DangerZonePoint point in zone.points) {
+        final double distance = _arService.calculateDistance(userLatLng, point.location);
+        if (distance > radiusInMeters) {
+          continue;
+        }
 
-    return filtered;
+        final double bearing = _arService.calculateBearing(userLatLng, point.location);
+        contexts.add(
+          _PointContext(
+            zone: zone,
+            point: point,
+            distance: distance,
+            relativeBearing: _relativeBearing(bearing),
+          ),
+        );
+      }
+    }
+
+    contexts.sort(
+      (_PointContext a, _PointContext b) => a.distance.compareTo(b.distance),
+    );
+
+    return contexts;
   }
 
   Color _zoneColor(DangerZone zone) {
@@ -285,169 +302,269 @@ class _ArCameraViewState extends State<ArCameraView> {
       );
     }
 
-    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
-    final List<DangerZone> zones = _zonesWithinRadius();
+    final List<_PointContext> points = _pointsWithinRadius();
+    // El overlay se activa para el punto más cercano dentro del FOV (±20°)
+    // y a una distancia que sea al menos el radio configurado del punto o 200 m,
+    // lo que sea mayor, para permitir avisos tempranos incluso con radios menores.
+    final List<_PointContext> pointsInFov = points
+        .where((context) {
+          final double activationDistance =
+              math.max(context.point.radius, _overlayMinDistanceMeters);
+          return context.relativeBearing.abs() <= 20 &&
+              context.distance <= activationDistance;
+        })
+        .toList()
+      ..sort(
+        (_PointContext a, _PointContext b) => a.distance.compareTo(b.distance),
+      );
+    final _PointContext? focusedPoint =
+        pointsInFov.isNotEmpty ? pointsInFov.first : null;
 
     return Align(
       alignment: Alignment.topCenter,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.55),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.shield, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Zonas de peligro cercanas (${zones.length})',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
-              ],
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: focusedPoint != null
+                  ? _FocusedPointOverlay(
+                      key: ValueKey<String>(focusedPoint.point.id),
+                      pointContext: focusedPoint,
+                      distanceLabel: _formatDistance(focusedPoint.distance),
+                      zoneColor: _zoneColor(focusedPoint.zone),
+                      onViewZonePoints: () =>
+                          _showZonePoints(focusedPoint.zone, userPosition),
+                    )
+                  : const SizedBox.shrink(),
             ),
-            const SizedBox(height: 12),
-            if (zones.isEmpty)
-              const Text(
-                'No hay zonas registradas a 1 km a la redonda.',
-                style: TextStyle(color: Colors.white70),
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight * 0.45,
-                ),
-                child: ListView.builder(
-                  itemCount: zones.length,
-                  shrinkWrap: true,
-                  itemBuilder: (BuildContext context, int index) {
-                    final DangerZone zone = zones[index];
-                    final double distance =
-                        _arService.calculateDistance(userLatLng, zone.center);
-                    final double bearing =
-                        _arService.calculateBearing(userLatLng, zone.center);
-                    final double relative = _relativeBearing(bearing);
-
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.assistant_photo, color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Puntos de peligro cercanos (${points.length})',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 52,
+                      _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (points.isEmpty)
+                    const Text(
+                      'No hay puntos registrados a 1.2 km a la redonda.',
+                      style: TextStyle(color: Colors.white70),
+                    )
+                  else
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: constraints.maxHeight * 0.45,
+                      ),
+                      child: ListView.builder(
+                        itemCount: points.length,
+                        shrinkWrap: true,
+                        itemBuilder: (BuildContext context, int index) {
+                          final _PointContext pointContext = points[index];
+
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Row(
+                              children: [
+                                Transform.rotate(
+                                  angle: pointContext.relativeBearing * math.pi / 180,
+                                  child: Icon(
+                                    Icons.navigation_rounded,
+                                    color: _zoneColor(pointContext.zone),
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${pointContext.point.title} | ${_formatDistance(pointContext.distance)}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        pointContext.zone.title,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      '${pointContext.relativeBearing.toStringAsFixed(0)}°',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Radio ${pointContext.point.radius.toStringAsFixed(0)} m',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showZonePoints(DangerZone zone, Position userPosition) async {
+    if (!mounted) {
+      return;
+    }
+
+    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
+    final List<_PointContext> zonePoints = zone.points
+        .map(
+          (DangerZonePoint point) => _PointContext(
+            zone: zone,
+            point: point,
+            distance: _arService.calculateDistance(userLatLng, point.location),
+            relativeBearing:
+                _relativeBearing(_arService.calculateBearing(userLatLng, point.location)),
+          ),
+        )
+        .toList()
+      ..sort((_PointContext a, _PointContext b) => a.distance.compareTo(b.distance));
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.black.withOpacity(0.9),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Puntos en ${zone.title}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (zonePoints.isEmpty)
+                  const Text(
+                    'No hay puntos asociados a esta zona.',
+                    style: TextStyle(color: Colors.white70),
+                  )
+                else
+                  ...zonePoints.map(
+                    (_PointContext pointData) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Transform.rotate(
+                            angle: pointData.relativeBearing * math.pi / 180,
+                            child: Icon(
+                              Icons.navigation_rounded,
                               color: _zoneColor(zone),
-                              borderRadius: BorderRadius.circular(6),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  zone.title,
+                                  pointData.point.title,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 4,
-                                  children: [
-                                    _InfoPill(
-                                      icon: Icons.place,
-                                      label: _formatDistance(distance),
-                                    ),
-                                    _InfoPill(
-                                      icon: Icons.shield,
-                                      label: switch (zone.level) {
-                                        DangerLevel.high => 'Peligro alto',
-                                        DangerLevel.medium => 'Peligro medio',
-                                        DangerLevel.low => 'Peligro bajo',
-                                      },
-                                      color: _zoneColor(zone).withOpacity(0.8),
-                                    ),
-                                  ],
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatDistance(pointData.distance),
+                                  style: const TextStyle(color: Colors.white70),
                                 ),
-                                if (zone.precautions.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      'Precauciones: ${zone.precautions}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                if (zone.securityRecommendations.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      'Recomendaciones: ${zone.securityRecommendations}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Column(
-                            children: [
-                              Transform.rotate(
-                                angle: relative * math.pi / 180,
-                                child: Icon(
-                                  Icons.navigation_rounded,
-                                  color: _zoneColor(zone),
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${relative.toStringAsFixed(0)}°',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            'Radio ${pointData.point.radius.toStringAsFixed(0)} m',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -513,30 +630,118 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.label, this.color});
+class _PointContext {
+  const _PointContext({
+    required this.zone,
+    required this.point,
+    required this.distance,
+    required this.relativeBearing,
+  });
 
-  final IconData icon;
-  final String label;
-  final Color? color;
+  final DangerZone zone;
+  final DangerZonePoint point;
+  final double distance;
+  final double relativeBearing;
+}
+
+class _FocusedPointOverlay extends StatelessWidget {
+  const _FocusedPointOverlay({
+    super.key,
+    required this.pointContext,
+    required this.distanceLabel,
+    required this.zoneColor,
+    required this.onViewZonePoints,
+  });
+
+  final _PointContext pointContext;
+  final String distanceLabel;
+  final Color zoneColor;
+  final VoidCallback onViewZonePoints;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color ?? Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.black.withOpacity(0.78),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white24),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.place, color: zoneColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${pointContext.point.title} - ${pointContext.zone.title}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Distancia: $distanceLabel',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (pointContext.point.description.isNotEmpty)
+            Text(
+              pointContext.point.description,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          const SizedBox(height: 8),
+          if (pointContext.point.precautions.isNotEmpty)
+            Text(
+              'Precauciones específicas: ${pointContext.point.precautions}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          if (pointContext.point.recommendations.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Recomendaciones: ${pointContext.point.recommendations}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ),
+          const SizedBox(height: 6),
           Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            'Zona: ${pointContext.zone.description}',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Text(
+            'Nivel: ${pointContext.zone.level.name.toUpperCase()} | Radio de detección ${pointContext.point.radius.toStringAsFixed(0)} m',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.white.withOpacity(0.12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: onViewZonePoints,
+              icon: const Icon(Icons.list_alt),
+              label: Text('Ver otros puntos de ${pointContext.zone.title}'),
+            ),
           ),
         ],
       ),
