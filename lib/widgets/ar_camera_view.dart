@@ -302,6 +302,8 @@ class _ArCameraViewState extends State<ArCameraView> {
     }
 
     final List<_PointContext> points = _pointsWithinRadius();
+    // Se enfoca el overlay solo en puntos dentro del radio configurado del punto
+    // y a menos de 20° del rumbo actual del dispositivo.
     final List<_PointContext> pointsInFov = points
         .where(
           (context) =>

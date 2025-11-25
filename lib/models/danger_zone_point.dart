@@ -1,6 +1,11 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+/// Representa un punto específico de peligro perteneciente a una zona.
+///
+/// El [radius] define el radio de detección en metros usado por la vista AR:
+/// si el usuario está dentro de este radio y apunta hacia el punto, se
+/// mostrará el overlay informativo.
 class DangerZonePoint {
   const DangerZonePoint({
     required this.id,
