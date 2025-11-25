@@ -78,7 +78,7 @@ class _ArCameraViewState extends State<ArCameraView> {
       );
 
       final CameraController controller = CameraController(
-        selectedCamera,
+        selectedCamera!,
         ResolutionPreset.medium,
         enableAudio: false,
       );
