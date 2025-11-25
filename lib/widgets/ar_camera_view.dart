@@ -41,6 +41,9 @@ class _ArCameraViewState extends State<ArCameraView> {
   String? _cameraError;
   DateTime _lastUiUpdate = DateTime.now();
 
+  static const double _horizontalFov = 60;
+  static const double _verticalFov = 60;
+
   @override
   void initState() {
     super.initState();
@@ -288,164 +291,222 @@ class _ArCameraViewState extends State<ArCameraView> {
     final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
     final List<DangerZone> zones = _zonesWithinRadius();
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.55),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.shield, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Zonas de peligro cercanas (${zones.length})',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (zones.isEmpty)
-              const Text(
-                'No hay zonas registradas a 1 km a la redonda.',
-                style: TextStyle(color: Colors.white70),
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight * 0.45,
-                ),
-                child: ListView.builder(
-                  itemCount: zones.length,
-                  shrinkWrap: true,
-                  itemBuilder: (BuildContext context, int index) {
-                    final DangerZone zone = zones[index];
-                    final double distance =
-                        _arService.calculateDistance(userLatLng, zone.center);
-                    final double bearing =
-                        _arService.calculateBearing(userLatLng, zone.center);
-                    final double relative = _relativeBearing(bearing);
+    final Size screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+    final List<_ZoneRenderData> renderData = zones.map((DangerZone zone) {
+      final double distance =
+          _arService.calculateDistance(userLatLng, zone.center);
+      final double bearing =
+          _arService.calculateBearing(userLatLng, zone.center);
+      final double relative = _relativeBearing(bearing);
+      final bool withinFov =
+          _arService.isWithinFov(bearing, _heading, fov: _horizontalFov);
 
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.all(12),
+      final Offset? position = _arService.calculateScreenPosition(
+        userLocation: userLatLng,
+        targetLocation: zone.center,
+        heading: _heading,
+        pitch: _pitch,
+        screenSize: screenSize,
+        horizontalFov: _horizontalFov,
+        verticalFov: _verticalFov,
+      );
+
+      final _EdgePosition edge = _calculateEdge(relative, _pitch);
+
+      return _ZoneRenderData(
+        zone: zone,
+        distance: distance,
+        bearing: bearing,
+        relativeBearing: relative,
+        screenPosition: position,
+        isWithinFov: withinFov && position != null,
+        edge: edge,
+        color: _zoneColor(zone),
+      );
+    }).toList();
+
+    final Map<_EdgePosition, List<_ZoneRenderData>> edgeGroups = {
+      _EdgePosition.left: <_ZoneRenderData>[],
+      _EdgePosition.right: <_ZoneRenderData>[],
+      _EdgePosition.top: <_ZoneRenderData>[],
+      _EdgePosition.bottom: <_ZoneRenderData>[],
+    };
+
+    for (final _ZoneRenderData data in renderData) {
+      edgeGroups[data.edge]?.add(data);
+    }
+
+    final List<Widget> markerWidgets = renderData
+        .where((data) => data.screenPosition != null)
+        .map((data) => _buildMarker(data))
+        .toList();
+
+    final List<Widget> edgeWidgets = <Widget>[
+      _buildEdgeIndicators(edgeGroups[_EdgePosition.left]!, _EdgePosition.left),
+      _buildEdgeIndicators(edgeGroups[_EdgePosition.right]!, _EdgePosition.right),
+      _buildEdgeIndicators(edgeGroups[_EdgePosition.top]!, _EdgePosition.top),
+      _buildEdgeIndicators(edgeGroups[_EdgePosition.bottom]!, _EdgePosition.bottom),
+    ];
+
+    return Stack(
+      children: [
+        ...markerWidgets,
+        ...edgeWidgets,
+      ],
+    );
+  }
+
+  _EdgePosition _calculateEdge(double relativeBearing, double pitch) {
+    if (pitch > _verticalFov / 2) {
+      return _EdgePosition.bottom;
+    }
+    if (pitch < -_verticalFov / 2) {
+      return _EdgePosition.top;
+    }
+    return relativeBearing >= 0 ? _EdgePosition.right : _EdgePosition.left;
+  }
+
+  Widget _buildMarker(_ZoneRenderData data) {
+    final Offset position = data.screenPosition ?? Offset.zero;
+    final Color color = data.color;
+
+    return Positioned(
+      left: position.dx - 70,
+      top: position.dy - 60,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        opacity: data.isWithinFov ? 1 : 0,
+        child: IgnorePointer(
+          ignoring: !data.isWithinFov,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: color.withOpacity(0.7), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: _zoneColor(zone),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  zone.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 4,
-                                  children: [
-                                    _InfoPill(
-                                      icon: Icons.place,
-                                      label: _formatDistance(distance),
-                                    ),
-                                    _InfoPill(
-                                      icon: Icons.shield,
-                                      label: switch (zone.level) {
-                                        DangerLevel.high => 'Peligro alto',
-                                        DangerLevel.medium => 'Peligro medio',
-                                        DangerLevel.low => 'Peligro bajo',
-                                      },
-                                      color: _zoneColor(zone).withOpacity(0.8),
-                                    ),
-                                  ],
-                                ),
-                                if (zone.precautions.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      'Precauciones: ${zone.precautions}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                if (zone.securityRecommendations.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      'Recomendaciones: ${zone.securityRecommendations}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            children: [
-                              Transform.rotate(
-                                angle: relative * math.pi / 180,
-                                child: Icon(
-                                  Icons.navigation_rounded,
-                                  color: _zoneColor(zone),
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${relative.toStringAsFixed(0)}°',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                        color: color,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.4),
+                            blurRadius: 6,
+                            spreadRadius: 1,
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          data.zone.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatDistance(data.distance),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(height: 6),
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color, width: 2),
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEdgeIndicators(List<_ZoneRenderData> zones, _EdgePosition edge) {
+    if (zones.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final bool isHorizontal = edge == _EdgePosition.top || edge == _EdgePosition.bottom;
+    final Widget indicators = isHorizontal
+        ? Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: zones
+                .map((data) => _EdgeIndicator(
+                      data: data,
+                      edge: edge,
+                    ))
+                .toList(),
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: zones
+                .map((data) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: _EdgeIndicator(
+                        data: data,
+                        edge: edge,
+                      ),
+                    ))
+                .toList(),
+          );
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: true,
+        child: Align(
+          alignment: switch (edge) {
+            _EdgePosition.left => Alignment.centerLeft,
+            _EdgePosition.right => Alignment.centerRight,
+            _EdgePosition.top => Alignment.topCenter,
+            _EdgePosition.bottom => Alignment.bottomCenter,
+          },
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: edge == _EdgePosition.left ? 12 : 0,
+              right: edge == _EdgePosition.right ? 12 : 0,
+              top: edge == _EdgePosition.top ? 16 : 0,
+              bottom: edge == _EdgePosition.bottom ? 16 : 24,
+            ),
+            child: indicators,
+          ),
         ),
       ),
     );
@@ -513,33 +574,91 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.label, this.color});
+enum _EdgePosition { left, right, top, bottom }
 
-  final IconData icon;
-  final String label;
-  final Color? color;
+class _ZoneRenderData {
+  const _ZoneRenderData({
+    required this.zone,
+    required this.distance,
+    required this.bearing,
+    required this.relativeBearing,
+    required this.screenPosition,
+    required this.isWithinFov,
+    required this.edge,
+    required this.color,
+  });
+
+  final DangerZone zone;
+  final double distance;
+  final double bearing;
+  final double relativeBearing;
+  final Offset? screenPosition;
+  final bool isWithinFov;
+  final _EdgePosition edge;
+  final Color color;
+}
+
+class _EdgeIndicator extends StatelessWidget {
+  const _EdgeIndicator({required this.data, required this.edge});
+
+  final _ZoneRenderData data;
+  final _EdgePosition edge;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color ?? Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-          ),
-        ],
+    final IconData arrowIcon = switch (edge) {
+      _EdgePosition.left => Icons.arrow_back_ios_new_rounded,
+      _EdgePosition.right => Icons.arrow_forward_ios_rounded,
+      _EdgePosition.top => Icons.arrow_upward_rounded,
+      _EdgePosition.bottom => Icons.arrow_downward_rounded,
+    };
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: data.isWithinFov ? 0 : 1,
+      curve: Curves.easeInOut,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.68),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: data.color.withOpacity(0.65), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: data.color.withOpacity(0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(arrowIcon, color: data.color, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${data.zone.title} | ${_formatDistanceStatic(data.distance)}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  static String _formatDistanceStatic(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+    return '${meters.toStringAsFixed(0)} m';
   }
 }
