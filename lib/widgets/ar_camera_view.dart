@@ -165,10 +165,18 @@ class _ArCameraViewState extends State<ArCameraView> {
       return const <DangerZone>[];
     }
     final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
-    return widget.dangerZones.where((zone) {
+    final List<DangerZone> filtered = widget.dangerZones.where((zone) {
       final double distance = _arService.calculateDistance(userLatLng, zone.center);
       return distance <= 1000;
     }).toList();
+
+    filtered.sort((DangerZone a, DangerZone b) {
+      final double distanceA = _arService.calculateDistance(userLatLng, a.center);
+      final double distanceB = _arService.calculateDistance(userLatLng, b.center);
+      return distanceA.compareTo(distanceB);
+    });
+
+    return filtered;
   }
 
   Color _zoneColor(DangerZone zone) {
@@ -205,81 +213,6 @@ class _ArCameraViewState extends State<ArCameraView> {
     );
   }
 
-  Widget _buildMarkers(BoxConstraints constraints) {
-    final Position? userPosition = _userPosition;
-    if (userPosition == null) {
-      return const SizedBox.shrink();
-    }
-
-    final Size screenSize = Size(constraints.maxWidth, constraints.maxHeight);
-    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
-    final List<Widget> markers = <Widget>[];
-
-    for (final DangerZone zone in _zonesWithinRadius()) {
-      final double bearing = _arService.calculateBearing(userLatLng, zone.center);
-      if (!_arService.isWithinFov(bearing, _heading)) {
-        continue;
-      }
-
-      final Offset? position = _arService.calculateScreenPosition(
-        userLocation: userLatLng,
-        targetLocation: zone.center,
-        heading: _heading,
-        pitch: _pitch,
-        screenSize: screenSize,
-      );
-
-      if (position == null) {
-        continue;
-      }
-
-      final double distance = _arService.calculateDistance(userLatLng, zone.center);
-
-      markers.add(
-        Positioned(
-          left: position.dx - 24,
-          top: position.dy - 24,
-          child: Column(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _zoneColor(zone).withOpacity(0.8),
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(Icons.shield, color: Colors.white),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      zone.title,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      '${distance.toStringAsFixed(0)} m',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Stack(children: markers);
-  }
-
   Widget _buildStatusPanel() {
     final Position? position = _userPosition;
     return Align(
@@ -314,6 +247,210 @@ class _ArCameraViewState extends State<ArCameraView> {
     );
   }
 
+  double _relativeBearing(double bearing) {
+    double normalized = (bearing - _heading) % 360;
+    if (normalized > 180) {
+      normalized -= 360;
+    } else if (normalized < -180) {
+      normalized += 360;
+    }
+    return normalized;
+  }
+
+  String _formatDistance(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+    return '${meters.toStringAsFixed(0)} m';
+  }
+
+  Widget _buildDangerOverlay(BoxConstraints constraints) {
+    final Position? userPosition = _userPosition;
+    if (userPosition == null) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.65),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Text(
+            'Sin señal GPS. Activa la ubicación para ver las zonas de peligro cercanas.',
+            style: TextStyle(color: Colors.white),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
+    final List<DangerZone> zones = _zonesWithinRadius();
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.55),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.shield, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Zonas de peligro cercanas (${zones.length})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (zones.isEmpty)
+              const Text(
+                'No hay zonas registradas a 1 km a la redonda.',
+                style: TextStyle(color: Colors.white70),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * 0.45,
+                ),
+                child: ListView.builder(
+                  itemCount: zones.length,
+                  shrinkWrap: true,
+                  itemBuilder: (BuildContext context, int index) {
+                    final DangerZone zone = zones[index];
+                    final double distance =
+                        _arService.calculateDistance(userLatLng, zone.center);
+                    final double bearing =
+                        _arService.calculateBearing(userLatLng, zone.center);
+                    final double relative = _relativeBearing(bearing);
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _zoneColor(zone),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  zone.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    _InfoPill(
+                                      icon: Icons.place,
+                                      label: _formatDistance(distance),
+                                    ),
+                                    _InfoPill(
+                                      icon: Icons.shield,
+                                      label: switch (zone.level) {
+                                        DangerLevel.high => 'Peligro alto',
+                                        DangerLevel.medium => 'Peligro medio',
+                                        DangerLevel.low => 'Peligro bajo',
+                                      },
+                                      color: _zoneColor(zone).withOpacity(0.8),
+                                    ),
+                                  ],
+                                ),
+                                if (zone.precautions.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Precauciones: ${zone.precautions}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                if (zone.securityRecommendations.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      'Recomendaciones: ${zone.securityRecommendations}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            children: [
+                              Transform.rotate(
+                                angle: relative * math.pi / 180,
+                                child: Icon(
+                                  Icons.navigation_rounded,
+                                  color: _zoneColor(zone),
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${relative.toStringAsFixed(0)}°',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -323,7 +460,7 @@ class _ArCameraViewState extends State<ArCameraView> {
             return Stack(
               children: [
                 Positioned.fill(child: _buildCameraBackground()),
-                Positioned.fill(child: _buildMarkers(constraints)),
+                Positioned.fill(child: _buildDangerOverlay(constraints)),
                 _buildStatusPanel(),
                 Positioned(
                   top: 12,
@@ -369,6 +506,37 @@ class _StatusChip extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label, this.color});
+
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color ?? Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
       ),

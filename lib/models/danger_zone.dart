@@ -34,7 +34,9 @@ class DangerZone {
   final DangerLevel level;
 
   factory DangerZone.fromJson(Map<String, dynamic> json) {
-    final String levelValue = (json['level'] as String? ?? '').toLowerCase();
+    final String levelValue =
+        (json['danger_level'] as String? ?? json['level'] as String? ?? '')
+            .toLowerCase();
     final DangerLevel level = switch (levelValue) {
       'alta' || 'high' => DangerLevel.high,
       'media' || 'medium' => DangerLevel.medium,
@@ -53,8 +55,9 @@ class DangerZone {
       specificDangers:
           json['specific_dangers'] as String? ?? json['details'] as String? ?? '',
       precautions: json['precautions'] as String? ?? 'Sigue las indicaciones locales.',
-      securityRecommendations:
-          json['security_recommendations'] as String? ?? 'Permanece alerta y evita áreas sin iluminación.',
+      securityRecommendations: json['security_recommendations'] as String? ??
+          json['recommendations'] as String? ??
+              'Permanece alerta y evita áreas sin iluminación.',
       level: level,
       radius: (json['radius'] as num?)?.toDouble() ?? defaultRadius,
       altitude: (json['altitude'] as num?)?.toDouble() ?? defaultAltitude,
