@@ -29,6 +29,7 @@ class ArCameraView extends StatefulWidget {
 
 class _ArCameraViewState extends State<ArCameraView> {
   final ArCalculationService _arService = const ArCalculationService();
+  static const double _overlayMinDistanceMeters = 200;
 
   CameraController? _cameraController;
   StreamSubscription<Position>? _positionSubscription;
@@ -302,14 +303,16 @@ class _ArCameraViewState extends State<ArCameraView> {
     }
 
     final List<_PointContext> points = _pointsWithinRadius();
-    // Se enfoca el overlay solo en puntos dentro del radio configurado del punto
-    // y a menos de 20° del rumbo actual del dispositivo.
+    // El overlay se activa para el punto más cercano dentro del FOV (±20°)
+    // y a una distancia que sea al menos el radio configurado del punto o 200 m,
+    // lo que sea mayor, para permitir avisos tempranos incluso con radios menores.
     final List<_PointContext> pointsInFov = points
-        .where(
-          (context) =>
-              context.relativeBearing.abs() <= 20 &&
-              context.distance <= context.point.radius,
-        )
+        .where((context) {
+          final double activationDistance =
+              math.max(context.point.radius, _overlayMinDistanceMeters);
+          return context.relativeBearing.abs() <= 20 &&
+              context.distance <= activationDistance;
+        })
         .toList()
       ..sort(
         (_PointContext a, _PointContext b) => a.distance.compareTo(b.distance),

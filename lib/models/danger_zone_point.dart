@@ -3,9 +3,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 /// Representa un punto específico de peligro perteneciente a una zona.
 ///
-/// El [radius] define el radio de detección en metros usado por la vista AR:
-/// si el usuario está dentro de este radio y apunta hacia el punto, se
-/// mostrará el overlay informativo.
+/// El [radius] define el radio de detección base en metros usado por la vista
+/// AR. El overlay se activa al apuntar al punto cuando la distancia es menor
+/// o igual al radio del punto o a 200 m (lo que sea mayor), permitiendo avisos
+/// más tempranos para radios pequeños.
 class DangerZonePoint {
   const DangerZonePoint({
     required this.id,
