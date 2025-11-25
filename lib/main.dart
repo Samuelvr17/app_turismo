@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/app_user.dart';
 import 'models/activity_survey.dart';
@@ -20,12 +21,14 @@ import 'services/weather_service.dart';
 import 'services/supabase_service.dart';
 import 'services/storage_service.dart';
 import 'services/auth_service.dart';
+import 'services/zone_detection_service.dart';
 import 'widgets/activity_survey_page.dart';
 import 'widgets/login_page.dart';
 import 'widgets/recommendations_page.dart';
 import 'widgets/weather_card.dart';
-import 'widgets/ar_danger_zone_view.dart';
 import 'widgets/profile_page.dart';
+import 'widgets/ar_camera_view.dart';
+import 'widgets/danger_zone_alert_dialog.dart';
 import 'models/danger_zone.dart';
 
 Future<void> main() async {
@@ -327,27 +330,20 @@ class MapaPage extends StatefulWidget {
 }
 
 class _MapaPageState extends State<MapaPage> {
-  static const List<DangerZone> _dangerZones = [
-    DangerZone(
-      id: 'vereda_1',
-      center: LatLng(4.1161999958575795, -73.6088337333233),
-      title: 'Vereda 1',
-      description: 'info relevante',
-      specificDangers: 'peligros del área',
-      securityRecommendations: 'recomendaciones',
-      radius: 120,
-      overlayHeight: 18,
-    ),
-  ];
-
+  static const LatLng _defaultCameraTarget = LatLng(4.1162, -73.6088);
   final LocationService _locationService = LocationService.instance;
+  final ZoneDetectionService _zoneDetectionService = ZoneDetectionService();
   late final VoidCallback _locationListener;
+  List<DangerZone> _dangerZones = const <DangerZone>[];
+  bool _zonesLoading = true;
+  String? _zonesError;
+
   GoogleMapController? _mapController;
   Position? _currentPosition;
   Marker? _userMarker;
   bool _isLoading = true;
   String? _errorMessage;
-  String? _activeZoneId;
+  DangerZone? _activeZone;
   bool _isShowingDialog = false;
 
   @override
@@ -368,11 +364,11 @@ class _MapaPageState extends State<MapaPage> {
     final Position? initialPosition = initialState.position;
     if (initialPosition != null) {
       unawaited(_moveCameraToPosition(initialPosition));
-      unawaited(_evaluateDangerZones(initialPosition));
     }
 
     _locationService.stateListenable.addListener(_locationListener);
     unawaited(_locationService.initialize());
+    unawaited(_loadDangerZones());
   }
 
   @override
@@ -399,7 +395,9 @@ class _MapaPageState extends State<MapaPage> {
     final Position? position = state.position;
     if (position != null) {
       unawaited(_moveCameraToPosition(position));
-      unawaited(_evaluateDangerZones(position));
+      if (_dangerZones.isNotEmpty) {
+        unawaited(_evaluateDangerZones(position));
+      }
     }
   }
 
@@ -419,6 +417,37 @@ class _MapaPageState extends State<MapaPage> {
     );
   }
 
+  Future<void> _loadDangerZones() async {
+    setState(() {
+      _zonesLoading = true;
+      _zonesError = null;
+    });
+
+    try {
+      final List<DangerZone> zones = await _zoneDetectionService.loadDangerZones();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _dangerZones = zones;
+        _zonesLoading = false;
+      });
+
+      if (_currentPosition != null && _dangerZones.isNotEmpty) {
+        unawaited(_evaluateDangerZones(_currentPosition!));
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _zonesError = 'No se pudieron cargar las zonas de peligro: $error';
+        _zonesLoading = false;
+      });
+    }
+  }
+
   Marker _buildUserMarker(Position position) {
     return Marker(
       markerId: const MarkerId('user_location'),
@@ -428,66 +457,38 @@ class _MapaPageState extends State<MapaPage> {
   }
 
   Future<void> _evaluateDangerZones(Position position) async {
-    final zone = _findDangerZone(position);
+    final DangerZone? zone = _zoneDetectionService.findDangerZone(
+      position: position,
+      zones: _dangerZones,
+      detectionRadius: 100,
+    );
 
     if (zone == null) {
-      if (_activeZoneId != null && mounted) {
+      if (_activeZone != null && mounted) {
         setState(() {
-          _activeZoneId = null;
+          _activeZone = null;
         });
       }
       return;
     }
 
-    if (_activeZoneId == zone.id) {
+    if (_activeZone?.id == zone.id || _isShowingDialog) {
+      _activeZone = zone;
       return;
     }
 
     if (mounted) {
       setState(() {
-        _activeZoneId = zone.id;
+        _activeZone = zone;
       });
     } else {
-      _activeZoneId = zone.id;
+      _activeZone = zone;
     }
 
     await _showDangerDialog(zone);
   }
 
-  DangerZone? _findDangerZone(Position position) {
-    for (final zone in _dangerZones) {
-      final distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        zone.center.latitude,
-        zone.center.longitude,
-      );
-
-      if (distance <= zone.radius) {
-        return zone;
-      }
-    }
-    return null;
-  }
-
-  Set<String> _collectNearbyZoneIds(Position position) {
-    final Set<String> ids = <String>{};
-    for (final zone in _dangerZones) {
-      final double distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        zone.center.latitude,
-        zone.center.longitude,
-      );
-
-      if (distance <= zone.radius) {
-        ids.add(zone.id);
-      }
-    }
-    return ids;
-  }
-
-  Future<void> _openArDangerView() async {
+  Future<void> _openArDangerView({DangerZone? targetZone}) async {
     final Position? position = _currentPosition;
     if (position == null) {
       if (!mounted) {
@@ -501,7 +502,39 @@ class _MapaPageState extends State<MapaPage> {
       return;
     }
 
-    final Set<String> activeZones = _collectNearbyZoneIds(position);
+    final PermissionStatus cameraStatus = await Permission.camera.request();
+    if (!cameraStatus.isGranted) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Se requiere permiso de cámara para la vista AR.'),
+        ),
+      );
+      return;
+    }
+
+    final List<DangerZone> nearbyZones = _zoneDetectionService.collectNearbyZones(
+      position: position,
+      zones: _dangerZones,
+      radiusInMeters: 1000,
+    );
+
+    if (targetZone != null && !nearbyZones.any((zone) => zone.id == targetZone.id)) {
+      nearbyZones.add(targetZone);
+    }
+
+    if (nearbyZones.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay zonas cercanas para mostrar en AR.'),
+          ),
+        );
+      }
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -509,10 +542,9 @@ class _MapaPageState extends State<MapaPage> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => ArDangerZoneView(
-          dangerZones: _dangerZones,
-          currentPosition: position,
-          activeZoneIds: activeZones,
+        builder: (BuildContext context) => ArCameraView(
+          dangerZones: nearbyZones,
+          initialPosition: position,
         ),
       ),
     );
@@ -529,53 +561,14 @@ class _MapaPageState extends State<MapaPage> {
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) {
-          final textTheme = Theme.of(context).textTheme;
-          return AlertDialog(
-            title: const Text('⚠️ Zona de Precaución'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'lugar - ${zone.title}',
-                  style: textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'info relevante',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.description),
-                const SizedBox(height: 12),
-                Text(
-                  'peligros del área',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.specificDangers),
-                const SizedBox(height: 12),
-                Text(
-                  'recomendaciones',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(zone.securityRecommendations),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  if (Navigator.of(dialogContext).canPop()) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                },
-                child: const Text('Entendido'),
-              ),
-            ],
-          );
-        },
+        builder: (dialogContext) => DangerZoneAlertDialog(
+          zone: zone,
+          onDismiss: () => Navigator.of(dialogContext).pop(),
+          onOpenAr: () {
+            Navigator.of(dialogContext).pop();
+            _openArDangerView(targetZone: zone);
+          },
+        ),
       );
     } finally {
       if (mounted) {
@@ -588,6 +581,17 @@ class _MapaPageState extends State<MapaPage> {
     }
   }
 
+  Color _zoneColor(DangerZone zone) {
+    switch (zone.level) {
+      case DangerLevel.high:
+        return Colors.red;
+      case DangerLevel.medium:
+        return Colors.orange;
+      case DangerLevel.low:
+        return Colors.yellow.shade700;
+    }
+  }
+
   Set<Circle> get _dangerZoneCircles {
     return _dangerZones
         .map(
@@ -595,8 +599,8 @@ class _MapaPageState extends State<MapaPage> {
             circleId: CircleId(zone.id),
             center: zone.center,
             radius: zone.radius,
-            fillColor: Colors.red.withAlpha(51),
-            strokeColor: Colors.red.withAlpha(128),
+            fillColor: _zoneColor(zone).withAlpha(51),
+            strokeColor: _zoneColor(zone).withAlpha(128),
             strokeWidth: 2,
           ),
         )
@@ -607,7 +611,7 @@ class _MapaPageState extends State<MapaPage> {
   Widget build(BuildContext context) {
     Widget body;
 
-    if (_isLoading) {
+    if (_isLoading || _zonesLoading) {
       body = const Center(
         child: CircularProgressIndicator(),
       );
@@ -640,7 +644,9 @@ class _MapaPageState extends State<MapaPage> {
     } else {
       final initialTarget = _currentPosition != null
           ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-          : _dangerZones.first.center;
+          : (_dangerZones.isNotEmpty
+              ? _dangerZones.first.center
+              : _defaultCameraTarget);
 
       body = GoogleMap(
         initialCameraPosition: CameraPosition(target: initialTarget, zoom: 16),
@@ -661,11 +667,36 @@ class _MapaPageState extends State<MapaPage> {
       );
     }
 
-    final bool canOpenAr = !_isLoading && _errorMessage == null;
+    final bool canOpenAr = !_isLoading && _errorMessage == null && !_zonesLoading;
 
     return Stack(
       children: [
         Positioned.fill(child: body),
+        if (_zonesError != null)
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Material(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _zonesError!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (canOpenAr)
           Positioned(
             bottom: 16,
