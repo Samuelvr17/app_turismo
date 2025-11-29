@@ -48,6 +48,14 @@ Para instrucciones detalladas paso a paso, consulta:
 - [docs/SUPABASE_ADMIN_GUIDE.md](./docs/SUPABASE_ADMIN_GUIDE.md) - Administración de rutas y contenido dinámico
 - [docs/MIGRATION_COMPLETE.md](./docs/MIGRATION_COMPLETE.md) - Detalles de la migración de datos
 
+### Diagramas del Sistema
+
+Documentación visual de la arquitectura:
+
+- [📊 Diagrama ER](./docs/DIAGRAMA_ER.md) - Base de datos (tablas, relaciones, cardinalidades)
+- [🏗️ Diagrama de Clases](./docs/DIAGRAMA_CLASES.md) - Modelos, servicios e interfaces
+- [🔧 Diagrama de Arquitectura](./docs/DIAGRAMA_ARQUITECTURA.md) - Capas del sistema y componentes
+
 ## Requisitos
 
 - Flutter SDK 3.9.0 o superior
