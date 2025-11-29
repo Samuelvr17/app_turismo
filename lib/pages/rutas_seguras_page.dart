@@ -593,18 +593,45 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         return PanoramaViewer(
           animSpeed: 0.8,
           sensorControl: SensorControl.orientation,
-          child: Image.asset(
-            imageUrl,
-            fit: BoxFit.cover,
-            errorBuilder:
-                (BuildContext context, Object error, StackTrace? stackTrace) {
-              return Container(
-                color: Colors.black12,
-                alignment: Alignment.center,
-                child: const Icon(Icons.broken_image_outlined, size: 48),
-              );
-            },
-          ),
+          child: isNetworkImage
+              ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (BuildContext context, Widget child,
+                      ImageChunkEvent? progress) {
+                    if (progress == null) {
+                      return child;
+                    }
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: progress.expectedTotalBytes != null
+                            ? progress.cumulativeBytesLoaded /
+                                progress.expectedTotalBytes!
+                            : null,
+                      ),
+                    );
+                  },
+                  errorBuilder: (BuildContext context, Object error,
+                      StackTrace? stackTrace) {
+                    return Container(
+                      color: Colors.black12,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined, size: 48),
+                    );
+                  },
+                )
+              : Image.asset(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (BuildContext context, Object error,
+                      StackTrace? stackTrace) {
+                    return Container(
+                      color: Colors.black12,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined, size: 48),
+                    );
+                  },
+                ),
         );
       }
 
