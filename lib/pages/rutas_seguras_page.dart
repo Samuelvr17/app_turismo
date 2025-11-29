@@ -29,7 +29,6 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
   Map<String, Map<String, List<String>>> _routeActivityImages = {};
   
   bool _isLoading = true;
-  bool _isLoadingRouteData = true;
   String? _routeDataError;
 
   @override
@@ -83,7 +82,6 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
       setState(() {
         _routeLocations = locations;
         _routeActivityImages = images;
-        _isLoadingRouteData = false;
       });
     } catch (error) {
       if (!mounted) {
@@ -92,7 +90,6 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
 
       setState(() {
         _routeDataError = 'No se pudieron cargar los datos de rutas: $error';
-        _isLoadingRouteData = false;
       });
     }
   }
@@ -452,7 +449,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     final ThemeData theme = Theme.of(context);
     final bool isNetworkImage = imageUrl.startsWith('http');
 
-    Widget buildPanoramaChild() {
+    Image buildPanoramaChild() {
       if (isNetworkImage) {
         return Image.network(
           imageUrl,
