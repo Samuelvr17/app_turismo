@@ -6,6 +6,7 @@ import '../services/activity_survey_service.dart';
 import '../services/recommendation_api_service.dart';
 import 'activity_survey_page.dart';
 
+
 class RecommendationsPage extends StatefulWidget {
   const RecommendationsPage({super.key});
 
