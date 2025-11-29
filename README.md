@@ -4,12 +4,14 @@ Una aplicación Flutter para turismo seguro con integración de Supabase.
 
 ## Características
 
-- Mapa interactivo con zonas de peligro
-- Rutas seguras para turistas
-- Sistema de reportes con geolocalización
-- Recomendaciones personalizadas de actividades basadas en IA
-- Información del clima en tiempo real
-- Almacenamiento híbrido (local + nube)
+- **Mapa interactivo** con zonas de peligro en tiempo real
+- **Location-Based AR** para visualizar zonas de peligro con la cámara
+- **Rutas seguras** para turistas con gestión dinámica desde Supabase
+- **Sistema de reportes** con geolocalización
+- **Recomendaciones personalizadas** de actividades basadas en IA
+- **Información del clima** en tiempo real para actividades específicas
+- **Almacenamiento híbrido** (local + nube) con soporte offline
+- **Gestión dinámica de contenido** sin necesidad de recompilar la app
 
 ## Configuración de Supabase
 
@@ -27,16 +29,24 @@ SUPABASE_URL=tu-url-aqui
 SUPABASE_ANON_KEY=tu-key-aqui
 ```
 
-5. Ejecuta la migración SQL (ver instrucciones completas)
-6. Instala dependencias: `flutter pub get`
-7. Ejecuta la app: `flutter run`
+5. Ejecuta las migraciones SQL:
+
+```bash
+supabase db push
+```
+
+6. Configura el bucket de imágenes (ver guía de administración)
+7. Instala dependencias: `flutter pub get`
+8. Ejecuta la app: `flutter run`
 
 ### Documentación completa
 
 Para instrucciones detalladas paso a paso, consulta:
 
-- [INICIO_RAPIDO.md](./INICIO_RAPIDO.md) - Guía rápida
+- [INICIO_RAPIDO.md](./INICIO_RAPIDO.md) - Guía rápida de configuración
 - [CONFIGURACION_SUPABASE.md](./CONFIGURACION_SUPABASE.md) - Guía completa con capturas y solución de problemas
+- [docs/SUPABASE_ADMIN_GUIDE.md](./docs/SUPABASE_ADMIN_GUIDE.md) - Administración de rutas y contenido dinámico
+- [docs/MIGRATION_COMPLETE.md](./docs/MIGRATION_COMPLETE.md) - Detalles de la migración de datos
 
 ## Requisitos
 
@@ -44,6 +54,7 @@ Para instrucciones detalladas paso a paso, consulta:
 - Dart 3.9.0 o superior
 - Una cuenta de Supabase (gratuita)
 - Android SDK / Xcode (para desarrollo móvil)
+- Dispositivo físico con ARCore (Android) o ARKit (iOS) para funcionalidad AR
 
 ## Instalación
 
@@ -90,25 +101,54 @@ flutter run
 ```
 lib/
 ├── main.dart                 # Punto de entrada de la aplicación
+├── data/                     # Datos estáticos y configuración
+│   └── default_safe_routes.dart
 ├── models/                   # Modelos de datos
 │   ├── activity_recommendation.dart
 │   ├── activity_survey.dart
+│   ├── danger_zone.dart
+│   ├── danger_zone_point.dart
 │   ├── report.dart
 │   ├── safe_route.dart
 │   ├── user_preferences.dart
 │   └── weather_data.dart
+├── pages/                    # Páginas principales de la aplicación
+│   ├── activity_survey_page.dart
+│   ├── login_page.dart
+│   ├── mapa_page.dart
+│   ├── profile_page.dart
+│   ├── recommendations_page.dart
+│   ├── reportes_page.dart
+│   └── rutas_seguras_page.dart
 ├── services/                 # Servicios de la aplicación
-│   ├── activity_survey_service.dart  # Manejo del cuestionario y recomendaciones
-│   ├── supabase_service.dart      # Cliente de Supabase
-│   ├── storage_service.dart       # Servicio híbrido (recomendado)
-│   ├── local_storage_service.dart # Almacenamiento local
+│   ├── activity_survey_service.dart
+│   ├── ar_calculation_service.dart
+│   ├── auth_service.dart
+│   ├── local_storage_service.dart
 │   ├── location_service.dart
-│   ├── recommendation_api_service.dart # Cliente HTTP hacia el servicio IA
-│   └── weather_service.dart
+│   ├── recommendation_api_service.dart
+│   ├── reports_remote_data_source.dart
+│   ├── route_data_service.dart      # ⭐ Gestión dinámica de rutas
+│   ├── safe_route_local_data_source.dart
+│   ├── storage_service.dart
+│   ├── supabase_service.dart
+│   ├── weather_service.dart
+│   └── zone_detection_service.dart
 └── widgets/                  # Widgets reutilizables
-    ├── activity_survey_page.dart
-    ├── recommendations_page.dart
+    ├── ar_camera_view.dart
+    ├── ar_danger_zone_view.dart
+    ├── danger_zone_alert_dialog.dart
     └── weather_card.dart
+
+supabase/
+└── migrations/               # Migraciones de base de datos
+    ├── 20250101000000_initial_schema.sql
+    ├── 20251129000000_add_route_locations_and_activity_images.sql
+    └── ...
+
+docs/                         # Documentación adicional
+├── SUPABASE_ADMIN_GUIDE.md  # Guía de administración de contenido
+└── MIGRATION_COMPLETE.md    # Detalles de migración de datos
 ```
 
 ## Arquitectura de datos
@@ -117,6 +157,7 @@ La aplicación utiliza un sistema híbrido de almacenamiento:
 
 - **Almacenamiento local**: Hive + SharedPreferences (para funcionamiento offline)
 - **Almacenamiento en nube**: Supabase (para sincronización entre dispositivos)
+- **Caché inteligente**: Los datos de rutas se cachean por 24 horas para mejor rendimiento
 
 Los datos se guardan primero en Supabase y luego localmente como respaldo. Si Supabase no está disponible, los datos se guardan solo localmente.
 
@@ -127,8 +168,16 @@ Los datos se guardan primero en Supabase y luego localmente como respaldo. Si Su
 - `reports`: Reportes de usuarios con geolocalización
 - `safe_routes`: Rutas turísticas seguras
 - `user_preferences`: Preferencias del usuario
+- `danger_zones`: Zonas de peligro con información detallada
+- `danger_zone_points`: Puntos específicos dentro de zonas de peligro
+- `route_locations`: Ubicaciones GPS de rutas (gestión dinámica)
+- `activity_images`: Imágenes de actividades por ruta (gestión dinámica)
 
-Ver el archivo `supabase/migrations/20250101000000_initial_schema.sql` para el schema completo.
+### Storage Buckets
+
+- `activity-images`: Imágenes de actividades turísticas (público)
+
+Ver el directorio `supabase/migrations/` para el schema completo.
 
 ## Configuración adicional
 
