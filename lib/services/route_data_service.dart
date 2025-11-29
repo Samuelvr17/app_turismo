@@ -86,7 +86,6 @@ class RouteDataService {
 
   /// Obtiene todas las imágenes de actividades organizadas por ruta y actividad
   /// 
-  /// Retorna un Map anidado: Map<ruteName, Map<activityName, List<imageUrl>>>
   /// Usa caché si está disponible y no ha expirado
   Future<Map<String, Map<String, List<String>>>> getAllActivityImages() async {
     // Verificar caché
