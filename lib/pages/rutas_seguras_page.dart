@@ -431,7 +431,15 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   }
 
   bool _isPanoramaImage(String imageUrl) {
-    return !imageUrl.startsWith('http');
+    // Detectar imágenes panorámicas por nombre de archivo
+    // Las imágenes 360° típicamente tienen "parapente" o "panorama" en el nombre
+    final String lowerUrl = imageUrl.toLowerCase();
+    
+    // Lista de patrones que indican imágenes panorámicas
+    return lowerUrl.contains('parapente') ||
+           lowerUrl.contains('panorama') ||
+           lowerUrl.contains('360') ||
+           lowerUrl.contains('bryan-goff'); // La imagen específica de parapente
   }
 
   Widget _buildPanoramaPreview(BuildContext context, String imageAsset) {
