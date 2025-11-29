@@ -431,37 +431,82 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   }
 
   bool _isPanoramaImage(String imageUrl) {
-    // Detectar imágenes panorámicas por nombre de archivo
+    // Detectar imágenes panorámicas por nombre de archivo o metadatos en la URL
     // Las imágenes 360° típicamente tienen "parapente" o "panorama" en el nombre
-    final String lowerUrl = imageUrl.toLowerCase();
-    
+    final Uri parsed = Uri.parse(imageUrl);
+    final String path = parsed.path.toLowerCase();
+    final String normalized = imageUrl.toLowerCase();
+
     // Lista de patrones que indican imágenes panorámicas
-    return lowerUrl.contains('parapente') ||
-           lowerUrl.contains('panorama') ||
-           lowerUrl.contains('360') ||
-           lowerUrl.contains('bryan-goff'); // La imagen específica de parapente
+    return path.contains('parapente') ||
+        path.contains('panorama') ||
+        path.contains('360') ||
+        path.contains('bryan-goff') || // La imagen específica de parapente
+        parsed.queryParameters.containsKey('panorama') ||
+        parsed.queryParameters['type'] == 'panorama' ||
+        normalized.contains('panorama') ||
+        normalized.contains('360');
   }
 
-  Widget _buildPanoramaPreview(BuildContext context, String imageAsset) {
+  Widget _buildPanoramaPreview(BuildContext context, String imageUrl) {
     final ThemeData theme = Theme.of(context);
+    final bool isNetworkImage = imageUrl.startsWith('http');
+
+    Widget buildPanoramaChild() {
+      if (isNetworkImage) {
+        return Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder:
+              (BuildContext context, Widget child, ImageChunkEvent? progress) {
+            if (progress == null) {
+              return child;
+            }
+            return Center(
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(
+                  value: progress.expectedTotalBytes != null
+                      ? progress.cumulativeBytesLoaded /
+                          progress.expectedTotalBytes!
+                      : null,
+                ),
+              ),
+            );
+          },
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stackTrace) {
+            return Container(
+              color: Colors.black12,
+              alignment: Alignment.center,
+              child: const Icon(Icons.broken_image_outlined, size: 48),
+            );
+          },
+        );
+      }
+
+      return Image.asset(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder:
+            (BuildContext context, Object error, StackTrace? stackTrace) {
+          return Container(
+            color: Colors.black12,
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined, size: 48),
+          );
+        },
+      );
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         PanoramaViewer(
           animSpeed: 0.8,
           sensorControl: SensorControl.orientation,
-          child: Image.asset(
-            imageAsset,
-            fit: BoxFit.cover,
-            errorBuilder:
-                (BuildContext context, Object error, StackTrace? stackTrace) {
-              return Container(
-                color: Colors.black12,
-                alignment: Alignment.center,
-                child: const Icon(Icons.broken_image_outlined, size: 48),
-              );
-            },
-          ),
+          child: buildPanoramaChild(),
         ),
         Positioned(
           top: 12,
@@ -498,7 +543,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
               backgroundColor:
                   theme.colorScheme.surface.withValues(alpha: 0.85),
             ),
-            onPressed: () => _showFullScreenImage(imageAsset),
+            onPressed: () => _showFullScreenImage(imageUrl),
             icon: const Icon(Icons.open_in_full),
             label: const Text('Pantalla completa'),
           ),
