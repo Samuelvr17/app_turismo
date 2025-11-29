@@ -5,6 +5,7 @@ import 'package:panorama_viewer/panorama_viewer.dart';
 import '../data/default_safe_routes.dart';
 import '../models/safe_route.dart';
 import '../models/weather_data.dart';
+import '../services/route_data_service.dart';
 import '../services/safe_route_local_data_source.dart';
 import '../services/weather_service.dart';
 import '../widgets/weather_card.dart';
@@ -20,48 +21,29 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
   static const LatLng _defaultRouteLocation =
       LatLng(4.157296670026874, -73.68158509824853);
 
-  static const Map<String, LatLng> _routeLocations = <String, LatLng>{
-    'Vereda Buenavista': _defaultRouteLocation,
-    'Vereda Argentina': LatLng(4.201476, -73.638586),
-  };
-
-  static const Map<String, Map<String, List<String>>> _routeActivityImages =
-      <String, Map<String, List<String>>>{
-    'Vereda Buenavista': <String, List<String>>{
-      'Miradores': <String>[
-        'https://images.unsplash.com/photo-1491557345352-5929e343eb89?auto=format&fit=crop&w=1200&q=80',
-        'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
-      ],
-      'Parapente': <String>[
-        'assets/images/vereda-buenavista/parapente/bryan-goff-IuyhXAia8EA-unsplash.jpg',
-      ],
-      'Caminata ecológica': <String>[
-        'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=1200&q=80',
-        'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80',
-      ],
-    },
-    'Vereda Argentina': <String, List<String>>{
-      'Ciclismo': <String>[
-        'assets/images/vereda-argentina/arg1.jpg',
-        'assets/images/vereda-argentina/arg2.jpg',
-        'assets/images/vereda-argentina/arg3.jpg',
-      ],
-      'Caminata': <String>[
-        'assets/images/vereda-argentina/arg1.jpg',
-        'assets/images/vereda-argentina/arg2.jpg',
-        'assets/images/vereda-argentina/arg3.jpg',
-      ],
-    },
-  };
-
+  final RouteDataService _routeDataService = RouteDataService.instance;
   final SafeRouteLocalDataSource _localDataSource = SafeRouteLocalDataSource();
+  
   List<SafeRoute> _routes = const <SafeRoute>[];
+  Map<String, LatLng> _routeLocations = {};
+  Map<String, Map<String, List<String>>> _routeActivityImages = {};
+  
   bool _isLoading = true;
+  bool _isLoadingRouteData = true;
+  String? _routeDataError;
 
   @override
   void initState() {
     super.initState();
-    _initializeRoutes();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    // Cargar rutas y datos de ubicaciones/imágenes en paralelo
+    await Future.wait([
+      _initializeRoutes(),
+      _initializeRouteData(),
+    ]);
   }
 
   Future<void> _initializeRoutes() async {
@@ -88,6 +70,34 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
     }
   }
 
+  Future<void> _initializeRouteData() async {
+    try {
+      // Cargar ubicaciones e imágenes desde Supabase
+      final locations = await _routeDataService.getRouteLocations();
+      final images = await _routeDataService.getAllActivityImages();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _routeLocations = locations;
+        _routeActivityImages = images;
+        _isLoadingRouteData = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _routeDataError = 'No se pudieron cargar los datos de rutas: $error';
+        _isLoadingRouteData = false;
+      });
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -98,7 +108,32 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
 
     final ThemeData theme = Theme.of(context);
 
-    return ListView.separated(
+    return Column(
+      children: [
+        if (_routeDataError != null)
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: theme.colorScheme.onErrorContainer),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _routeDataError!,
+                    style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.separated(
+
       padding: const EdgeInsets.all(16),
       itemCount: _routes.length,
       separatorBuilder: (BuildContext context, int index) =>
@@ -162,8 +197,12 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
           ),
         );
       },
+    ),
+        ),
+      ],
     );
   }
+
 
   void _openActivityDetail({
     required SafeRoute route,
