@@ -45,6 +45,56 @@ Table safe_routes {
   '''
 }
 
+Table route_locations {
+  id bigint [pk, increment]
+  route_name text [not null, unique]
+  latitude double [not null]
+  longitude double [not null]
+  created_at timestamptz [not null, default: `now()`]
+  
+  Note: '''
+  Ubicaciones GPS de las rutas turísticas.
+  Relación 1:1 con safe_routes por route_name.
+  '''
+}
+
+Table activity_images {
+  id bigint [pk, increment]
+  route_name text [not null]
+  activity_name text [not null]
+  image_url text [not null]
+  display_order int [not null, default: 1]
+  created_at timestamptz [not null, default: `now()`]
+  
+  Indexes {
+    (route_name, activity_name) [name: 'idx_activity_images_route_activity']
+  }
+  
+  Note: '''
+  Imágenes de actividades por ruta.
+  image_url puede ser:
+  - URL de Supabase Storage (https://...)
+  - URL externa (Unsplash, etc)
+  Relación N:M entre rutas y actividades.
+  '''
+}
+
+Table danger_zones {
+  id bigint [pk, increment]
+  name text [not null]
+  description text [not null]
+  latitude double [not null]
+  longitude double [not null]
+  radius_meters int [not null, default: 100]
+  danger_level text [not null]
+  created_at timestamptz [not null, default: `now()`]
+  
+  Note: '''
+  Zonas de peligro para AR.
+  Mostradas en vista de realidad aumentada.
+  '''
+}
+
 Table user_activity_surveys {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, unique, ref: > app_users.id]
@@ -62,3 +112,7 @@ Table user_preferences {
   updated_at timestamptz [not null, default: `now()`]
   user_id uuid [not null, ref: > app_users.id]
 }
+
+// Relaciones implícitas (sin FK explícitas)
+Ref: route_locations.route_name - safe_routes.name
+Ref: activity_images.route_name > safe_routes.name
