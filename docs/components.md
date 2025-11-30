@@ -1,22 +1,22 @@
 C4Component
     title Diagrama de Componentes - App Turismo
 
-    Person(user, "Usuario", "Turista/Viajero")
+    Person(user, "Usuario", "Turista/Usuario")
 
     Container_Boundary(flutterApp, "Aplicación Flutter") {
-        Component(uiLayer, "UI Layer", "Flutter Widgets", "Pages: Login, Survey, Recommendations, Routes, AR")
-        Component(servicesLayer, "Services Layer", "Dart Services", "Auth, Storage, Weather, Survey, RouteData")
-        Component(localStorage, "Local Storage", "Hive + SharedPrefs", "Cache offline de rutas e imágenes")
+        Component(uiLayer, "UI Layer", "Flutter Widgets", "Paginas App")
+        Component(servicesLayer, "Services Layer", "Dart Services", "Servicios App")
+        Component(localStorage, "Local Storage", "Hive + SharedPrefs", "Cache offline")
     }
 
     Container_Boundary(backend, "Backend - Supabase") {
-        ComponentDb(database, "PostgreSQL", "PostgreSQL", "users, routes, activity_images, route_locations, reports")
-        ComponentDb(storage, "Supabase Storage", "Object Storage", "Bucket: activity-images (público)")
+        ComponentDb(database, "PostgreSQL", "PostgreSQL", "Entidades")
+        ComponentDb(storage, "Supabase Storage", "Object Storage", "activity-images")
         Component(auth, "Supabase Auth", "Auth Service", "JWT + RLS")
     }
 
     Container_Boundary(external, "Servicios Externos") {
-        Component_Ext(recommendAPI, "Recommendation API", "FastAPI", "Motor IA con scoring heurístico")
+        Component_Ext(recommendAPI, "Recommendation API", "FastAPI")
         Component_Ext(weatherAPI, "OpenWeatherMap", "REST API", "Datos meteorológicos")
     }
 
@@ -40,3 +40,15 @@ C4Component
     Rel(servicesLayer, sensors, "Lee orientación")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
+    UpdateElementStyle(uiLayer, $bgColor="#4A90E2", $fontColor="#FFFFFF")
+    UpdateElementStyle(servicesLayer, $bgColor="#4A90E2", $fontColor="#FFFFFF")
+    UpdateElementStyle(localStorage, $bgColor="#4A90E2", $fontColor="#FFFFFF")
+    UpdateElementStyle(database, $bgColor="#2874A6", $fontColor="#FFFFFF")
+    UpdateElementStyle(storage, $bgColor="#2874A6", $fontColor="#FFFFFF")
+    UpdateElementStyle(auth, $bgColor="#2874A6", $fontColor="#FFFFFF")
+    UpdateElementStyle(recommendAPI, $bgColor="#6B7280", $fontColor="#FFFFFF")
+    UpdateElementStyle(weatherAPI, $bgColor="#6B7280", $fontColor="#FFFFFF")
+    UpdateElementStyle(gps, $bgColor="#6B7280", $fontColor="#FFFFFF")
+    UpdateElementStyle(sensors, $bgColor="#6B7280", $fontColor="#FFFFFF")
