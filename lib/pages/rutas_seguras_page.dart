@@ -439,6 +439,9 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         path.contains('panorama') ||
         path.contains('360') ||
         path.contains('bryan-goff') || // La imagen específica de parapente
+        path.contains('arg1.jpg') ||    // Imágenes panorámicas de Vereda Argentina
+        path.contains('arg2.jpg') ||
+        path.contains('arg3.jpg') ||
         parsed.queryParameters.containsKey('panorama') ||
         parsed.queryParameters['type'] == 'panorama' ||
         normalized.contains('panorama') ||
