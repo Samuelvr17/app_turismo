@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/danger_zone.dart';
+import '../models/geo_point.dart';
 import '../services/location_service.dart';
 import '../services/zone_detection_service.dart';
 import '../widgets/ar_camera_view.dart';
 import '../widgets/danger_zone_alert_dialog.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 
 class MapaPage extends StatefulWidget {
   const MapaPage({super.key});
@@ -19,7 +22,7 @@ class MapaPage extends StatefulWidget {
 }
 
 class _MapaPageState extends State<MapaPage> {
-  static const LatLng _defaultCameraTarget = LatLng(4.1162, -73.6088);
+  static const GeoPoint _defaultCameraTarget = GeoPoint(4.1162, -73.6088);
   final LocationService _locationService = LocationService.instance;
   final ZoneDetectionService _zoneDetectionService = ZoneDetectionService();
   late final VoidCallback _locationListener;
@@ -27,17 +30,31 @@ class _MapaPageState extends State<MapaPage> {
   bool _zonesLoading = true;
   String? _zonesError;
 
-  GoogleMapController? _mapController;
+  final ArcGISMapViewController _mapViewController = ArcGISMapView.createController();
   Position? _currentPosition;
-  Marker? _userMarker;
+  double _heading = 0;
+  StreamSubscription<CompassEvent>? _compassSubscription;
   bool _isLoading = true;
   String? _errorMessage;
   DangerZone? _activeZone;
   bool _isShowingDialog = false;
 
+  late final ArcGISMap _arcGISMap;
+  final GraphicsOverlay _userLocationOverlay = GraphicsOverlay();
+  final GraphicsOverlay _dangerZonesOverlay = GraphicsOverlay();
+
   @override
   void initState() {
     super.initState();
+
+    _arcGISMap = ArcGISMap.withBasemapStyle(BasemapStyle.arcGISNavigation);
+    _arcGISMap.initialViewpoint = Viewpoint.withLatLongScale(
+      latitude: _defaultCameraTarget.latitude,
+      longitude: _defaultCameraTarget.longitude,
+      scale: 10000,
+    );
+    _mapViewController.arcGISMap = _arcGISMap;
+
     _locationListener = () {
       _handleLocationUpdate(_locationService.state);
     };
@@ -46,25 +63,33 @@ class _MapaPageState extends State<MapaPage> {
     _isLoading = initialState.isLoading;
     _errorMessage = initialState.errorMessage;
     _currentPosition = initialState.position;
-    _userMarker = initialState.position != null
-        ? _buildUserMarker(initialState.position!)
-        : null;
-
-    final Position? initialPosition = initialState.position;
-    if (initialPosition != null) {
-      unawaited(_moveCameraToPosition(initialPosition));
-    }
 
     _locationService.stateListenable.addListener(_locationListener);
     unawaited(_locationService.initialize());
     unawaited(_loadDangerZones());
+    _startCompassUpdates();
   }
 
   @override
   void dispose() {
     _locationService.stateListenable.removeListener(_locationListener);
-    _mapController?.dispose();
+    _compassSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onMapViewReady() {
+    _mapViewController.graphicsOverlays.addAll([
+      _dangerZonesOverlay,
+      _userLocationOverlay,
+    ]);
+
+    final Position? position = _currentPosition;
+    if (position != null) {
+      _updateUserLocationGraphic(position);
+      _moveCameraToPosition(position);
+    }
+
+    _updateDangerZoneGraphics();
   }
 
   void _handleLocationUpdate(LocationState state) {
@@ -76,34 +101,138 @@ class _MapaPageState extends State<MapaPage> {
       _isLoading = state.isLoading;
       _errorMessage = state.errorMessage;
       _currentPosition = state.position;
-      _userMarker = state.position != null
-          ? _buildUserMarker(state.position!)
-          : null;
     });
 
     final Position? position = state.position;
     if (position != null) {
-      unawaited(_moveCameraToPosition(position));
+      _updateUserLocationGraphic(position);
+      _moveCameraToPosition(position);
       if (_dangerZones.isNotEmpty) {
         unawaited(_evaluateDangerZones(position));
       }
     }
   }
 
-  Future<void> _requestLocationRefresh() => _locationService.refresh();
+  void _updateUserLocationGraphic(Position position) {
+    _userLocationOverlay.graphics.clear();
 
-  Future<void> _moveCameraToPosition(Position position) async {
-    final controller = _mapController;
-    if (controller == null) {
-      return;
+    final ArcGISPoint point = ArcGISPoint(
+      x: position.longitude,
+      y: position.latitude,
+      spatialReference: SpatialReference.wgs84,
+    );
+
+    final SimpleMarkerSymbol symbol = SimpleMarkerSymbol(
+      style: SimpleMarkerSymbolStyle.circle,
+      color: Colors.blue,
+      size: 14,
+    );
+
+    final SimpleMarkerSymbol outerSymbol = SimpleMarkerSymbol(
+      style: SimpleMarkerSymbolStyle.circle,
+      color: Colors.blue.withValues(alpha: 0.3),
+      size: 28,
+    );
+
+    final SimpleMarkerSymbol directionSymbol = SimpleMarkerSymbol(
+      style: SimpleMarkerSymbolStyle.triangle,
+      color: Colors.white,
+      size: 10,
+    );
+    directionSymbol.angle = _heading;
+
+    _userLocationOverlay.graphics.addAll([
+      Graphic(geometry: point, symbol: outerSymbol),
+      Graphic(geometry: point, symbol: symbol),
+      Graphic(geometry: point, symbol: directionSymbol),
+    ]);
+  }
+
+  void _startCompassUpdates() {
+    _compassSubscription = FlutterCompass.events?.listen((CompassEvent event) {
+      final double? heading = event.heading;
+      if (heading == null) {
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _heading = heading;
+        });
+
+        // Solo actualizar el gráfico si ya tenemos una posición
+        if (_currentPosition != null) {
+          _updateUserLocationGraphic(_currentPosition!);
+        }
+      }
+    });
+  }
+
+  void _updateDangerZoneGraphics() {
+    _dangerZonesOverlay.graphics.clear();
+
+    for (final DangerZone zone in _dangerZones) {
+      final ArcGISPoint center = ArcGISPoint(
+        x: zone.center.longitude,
+        y: zone.center.latitude,
+        spatialReference: SpatialReference.wgs84,
+      );
+
+      final Color zoneColor = _zoneColor(zone);
+
+      final SimpleFillSymbol fillSymbol = SimpleFillSymbol(
+        style: SimpleFillSymbolStyle.solid,
+        color: zoneColor.withValues(alpha: 0.2),
+        outline: SimpleLineSymbol(
+          style: SimpleLineSymbolStyle.solid,
+          color: zoneColor.withValues(alpha: 0.5),
+          width: 2,
+        ),
+      );
+
+      // Crear un polígono circular aproximado
+      final Polygon circlePolygon = _createCirclePolygon(center, zone.radius);
+      _dangerZonesOverlay.graphics.add(
+        Graphic(geometry: circlePolygon, symbol: fillSymbol),
+      );
+    }
+  }
+
+  Polygon _createCirclePolygon(ArcGISPoint center, double radiusMeters) {
+    final PolygonBuilder builder = PolygonBuilder(
+      spatialReference: SpatialReference.wgs84,
+    );
+
+    const int numPoints = 64;
+
+
+    for (int i = 0; i < numPoints; i++) {
+      final double angle = (i * 360.0 / numPoints) * (math.pi / 180);
+      // Approximate conversion from meters to degrees
+      final double latOffset = (radiusMeters / 111320) * math.cos(angle);
+      final double lonOffset =
+          (radiusMeters / (111320 * math.cos(center.y * math.pi / 180))) *
+              math.sin(angle);
+
+      builder.addPoint(ArcGISPoint(
+        x: center.x + lonOffset,
+        y: center.y + latOffset,
+        spatialReference: SpatialReference.wgs84,
+      ));
     }
 
-    final target = LatLng(position.latitude, position.longitude);
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: 17),
-      ),
+    return builder.toGeometry() as Polygon;
+  }
+
+  Future<void> _requestLocationRefresh() => _locationService.refresh();
+
+  void _moveCameraToPosition(Position position) {
+    final Viewpoint viewpoint = Viewpoint.withLatLongScale(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      scale: 5000,
     );
+    _mapViewController.setViewpoint(viewpoint);
   }
 
   Future<void> _loadDangerZones() async {
@@ -123,6 +252,8 @@ class _MapaPageState extends State<MapaPage> {
         _zonesLoading = false;
       });
 
+      _updateDangerZoneGraphics();
+
       if (_currentPosition != null && _dangerZones.isNotEmpty) {
         unawaited(_evaluateDangerZones(_currentPosition!));
       }
@@ -135,14 +266,6 @@ class _MapaPageState extends State<MapaPage> {
         _zonesLoading = false;
       });
     }
-  }
-
-  Marker _buildUserMarker(Position position) {
-    return Marker(
-      markerId: const MarkerId('user_location'),
-      position: LatLng(position.latitude, position.longitude),
-      infoWindow: const InfoWindow(title: 'Tu ubicación'),
-    );
   }
 
   Future<void> _evaluateDangerZones(Position position) async {
@@ -281,21 +404,6 @@ class _MapaPageState extends State<MapaPage> {
     }
   }
 
-  Set<Circle> get _dangerZoneCircles {
-    return _dangerZones
-        .map(
-          (zone) => Circle(
-            circleId: CircleId(zone.id),
-            center: zone.center,
-            radius: zone.radius,
-            fillColor: _zoneColor(zone).withValues(alpha: 0.2),
-            strokeColor: _zoneColor(zone).withValues(alpha: 0.5),
-            strokeWidth: 2,
-          ),
-        )
-        .toSet();
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget body;
@@ -331,28 +439,9 @@ class _MapaPageState extends State<MapaPage> {
         ),
       );
     } else {
-      final initialTarget = _currentPosition != null
-          ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-          : (_dangerZones.isNotEmpty
-              ? _dangerZones.first.center
-              : _defaultCameraTarget);
-
-      body = GoogleMap(
-        initialCameraPosition: CameraPosition(target: initialTarget, zoom: 16),
-        myLocationEnabled: true,
-        myLocationButtonEnabled: true,
-        compassEnabled: true,
-        circles: _dangerZoneCircles,
-        markers: {
-          if (_userMarker != null) _userMarker!,
-        },
-        onMapCreated: (controller) {
-          _mapController = controller;
-          final position = _currentPosition;
-          if (position != null) {
-            _moveCameraToPosition(position);
-          }
-        },
+      body = ArcGISMapView(
+        controllerProvider: () => _mapViewController,
+        onMapViewReady: _onMapViewReady,
       );
     }
 

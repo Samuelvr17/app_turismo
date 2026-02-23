@@ -1,5 +1,6 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/geo_point.dart';
 
 /// Servicio para cargar datos de rutas desde Supabase
 /// 
@@ -12,16 +13,16 @@ class RouteDataService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // Caché en memoria
-  Map<String, LatLng>? _cachedLocations;
+  Map<String, GeoPoint>? _cachedLocations;
   Map<String, Map<String, List<String>>>? _cachedImages;
   DateTime? _lastCacheUpdate;
   static const Duration _cacheExpiration = Duration(hours: 24);
 
   /// Obtiene las ubicaciones de todas las rutas
   /// 
-  /// Retorna un Map con el nombre de la ruta como key y LatLng como value
+  /// Retorna un Map con el nombre de la ruta como key y GeoPoint como value
   /// Usa caché si está disponible y no ha expirado
-  Future<Map<String, LatLng>> getRouteLocations() async {
+  Future<Map<String, GeoPoint>> getRouteLocations() async {
     // Verificar caché
     if (_cachedLocations != null && _isCacheValid()) {
       return _cachedLocations!;
@@ -32,12 +33,12 @@ class RouteDataService {
           .from('route_locations')
           .select('route_name, latitude, longitude');
 
-      final Map<String, LatLng> locations = {};
+      final Map<String, GeoPoint> locations = {};
       for (final item in response) {
         final String name = item['route_name'] as String;
         final double lat = (item['latitude'] as num).toDouble();
         final double lng = (item['longitude'] as num).toDouble();
-        locations[name] = LatLng(lat, lng);
+        locations[name] = GeoPoint(lat, lng);
       }
 
       // Actualizar caché

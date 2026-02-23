@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -21,6 +22,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
+
+  // Configurar la API Key de ArcGIS
+  final String arcgisApiKey = dotenv.get('ARCGIS_API_KEY', fallback: '');
+  if (arcgisApiKey.isNotEmpty) {
+    ArcGISEnvironment.apiKey = arcgisApiKey;
+  }
 
   await SupabaseService.instance.initialize();
   await AuthService.instance.initialize();

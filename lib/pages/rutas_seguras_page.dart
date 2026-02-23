@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../models/geo_point.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
 
 import '../data/default_safe_routes.dart';
@@ -18,14 +18,14 @@ class RutasSegurasPage extends StatefulWidget {
 }
 
 class _RutasSegurasPageState extends State<RutasSegurasPage> {
-  static const LatLng _defaultRouteLocation =
-      LatLng(4.157296670026874, -73.68158509824853);
+  static const GeoPoint _defaultRouteLocation =
+      GeoPoint(4.157296670026874, -73.68158509824853);
 
   final RouteDataService _routeDataService = RouteDataService.instance;
   final SafeRouteLocalDataSource _localDataSource = SafeRouteLocalDataSource();
   
   List<SafeRoute> _routes = const <SafeRoute>[];
-  Map<String, LatLng> _routeLocations = {};
+  Map<String, GeoPoint> _routeLocations = {};
   Map<String, Map<String, List<String>>> _routeActivityImages = {};
   
   bool _isLoading = true;
@@ -207,7 +207,7 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
   }) {
     final List<String> imageUrls = _routeActivityImages[route.name]?[activity] ??
         const <String>[];
-    final LatLng location =
+    final GeoPoint location =
         _routeLocations[route.name] ?? _defaultRouteLocation;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -258,7 +258,7 @@ class SafeRouteActivityDetailPage extends StatefulWidget {
   final String routeName;
   final String activityName;
   final String routeDescription;
-  final LatLng location;
+  final GeoPoint location;
   final List<String> imageUrls;
 
   @override

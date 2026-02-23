@@ -1,6 +1,5 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
 import 'danger_zone_point.dart';
+import 'geo_point.dart';
 
 enum DangerLevel { high, medium, low }
 
@@ -25,7 +24,7 @@ class DangerZone {
   static const double defaultOverlayHeight = 20;
 
   final String id;
-  final LatLng center;
+  final GeoPoint center;
   final String title;
   final String description;
   final String specificDangers;
@@ -59,7 +58,7 @@ class DangerZone {
 
     return DangerZone(
       id: json['id'].toString(),
-      center: LatLng(latitude, longitude),
+      center: GeoPoint(latitude, longitude),
       title: json['title'] as String? ?? json['name'] as String? ?? 'Zona',
       description: json['description'] as String? ?? 'Zona de peligro',
       specificDangers:

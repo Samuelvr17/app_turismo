@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import 'geo_point.dart';
 
 /// Representa un punto específico de peligro perteneciente a una zona.
 ///
@@ -27,7 +28,7 @@ class DangerZonePoint {
   final String description;
   final String precautions;
   final String recommendations;
-  final LatLng location;
+  final GeoPoint location;
   final double radius;
 
   factory DangerZonePoint.fromJson(Map<String, dynamic> json) {
@@ -38,7 +39,7 @@ class DangerZonePoint {
       description: json['description'] as String? ?? '',
       precautions: json['precautions'] as String? ?? '',
       recommendations: json['recommendations'] as String? ?? '',
-      location: LatLng(
+      location: GeoPoint(
         (json['latitude'] as num?)?.toDouble() ?? 0,
         (json['longitude'] as num?)?.toDouble() ?? 0,
       ),

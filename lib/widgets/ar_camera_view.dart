@@ -5,12 +5,12 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../models/danger_zone.dart';
 import '../models/danger_zone_point.dart';
+import '../models/geo_point.dart';
 import '../services/ar_calculation_service.dart';
 
 class ArCameraView extends StatefulWidget {
@@ -167,17 +167,17 @@ class _ArCameraViewState extends State<ArCameraView> {
       return const <_PointContext>[];
     }
 
-    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
+    final GeoPoint userGeoPoint = GeoPoint(userPosition.latitude, userPosition.longitude);
     final List<_PointContext> contexts = <_PointContext>[];
 
     for (final DangerZone zone in widget.dangerZones) {
       for (final DangerZonePoint point in zone.points) {
-        final double distance = _arService.calculateDistance(userLatLng, point.location);
+        final double distance = _arService.calculateDistance(userGeoPoint, point.location);
         if (distance > radiusInMeters) {
           continue;
         }
 
-        final double bearing = _arService.calculateBearing(userLatLng, point.location);
+        final double bearing = _arService.calculateBearing(userGeoPoint, point.location);
         contexts.add(
           _PointContext(
             zone: zone,
@@ -467,15 +467,15 @@ class _ArCameraViewState extends State<ArCameraView> {
       return;
     }
 
-    final LatLng userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
+    final GeoPoint userGeoPoint = GeoPoint(userPosition.latitude, userPosition.longitude);
     final List<_PointContext> zonePoints = zone.points
         .map(
           (DangerZonePoint point) => _PointContext(
             zone: zone,
             point: point,
-            distance: _arService.calculateDistance(userLatLng, point.location),
+            distance: _arService.calculateDistance(userGeoPoint, point.location),
             relativeBearing:
-                _relativeBearing(_arService.calculateBearing(userLatLng, point.location)),
+                _relativeBearing(_arService.calculateBearing(userGeoPoint, point.location)),
           ),
         )
         .toList()

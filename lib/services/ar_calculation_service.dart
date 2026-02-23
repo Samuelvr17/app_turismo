@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../models/geo_point.dart';
 
 class ArCalculationService {
   const ArCalculationService();
 
-  double calculateDistance(LatLng origin, LatLng destination) {
+  double calculateDistance(GeoPoint origin, GeoPoint destination) {
     return Geolocator.distanceBetween(
       origin.latitude,
       origin.longitude,
@@ -14,7 +15,7 @@ class ArCalculationService {
     );
   }
 
-  double calculateBearing(LatLng origin, LatLng destination) {
+  double calculateBearing(GeoPoint origin, GeoPoint destination) {
     return Geolocator.bearingBetween(
       origin.latitude,
       origin.longitude,
@@ -29,8 +30,8 @@ class ArCalculationService {
   }
 
   Offset? calculateScreenPosition({
-    required LatLng userLocation,
-    required LatLng targetLocation,
+    required GeoPoint userLocation,
+    required GeoPoint targetLocation,
     required double heading,
     required double pitch,
     required Size screenSize,
