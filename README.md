@@ -246,16 +246,10 @@ flutter build apk
 flutter build ios
 ```
 
-## Solución de problemas
-
-Si encuentras problemas durante la configuración, consulta la sección de "Solución de problemas comunes" en [CONFIGURACION_SUPABASE.md](./CONFIGURACION_SUPABASE.md).
-
 ## Recursos
 
 - [Documentación de Flutter](https://docs.flutter.dev/)
 - [Documentación de Supabase](https://supabase.com/docs)
 - [Plugin supabase_flutter](https://pub.dev/packages/supabase_flutter)
 
-## Licencia
 
-Este proyecto es un proyecto de ejemplo para propósitos educativos.
