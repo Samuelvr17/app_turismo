@@ -43,6 +43,10 @@ class _ArCameraViewState extends State<ArCameraView> {
   String? _cameraError;
   DateTime _lastUiUpdate = DateTime.now();
 
+  // Overlay state: whether the full detail panel is expanded
+  bool _isOverlayExpanded = false;
+  String? _focusedPointId;
+
   @override
   void initState() {
     super.initState();
@@ -320,6 +324,18 @@ class _ArCameraViewState extends State<ArCameraView> {
     final _PointContext? focusedPoint =
         pointsInFov.isNotEmpty ? pointsInFov.first : null;
 
+    // Reset expanded state when the focused point changes
+    if (focusedPoint?.point.id != _focusedPointId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isOverlayExpanded = false;
+            _focusedPointId = focusedPoint?.point.id;
+          });
+        }
+      });
+    }
+
     return Align(
       alignment: Alignment.topCenter,
       child: Padding(
@@ -330,122 +346,109 @@ class _ArCameraViewState extends State<ArCameraView> {
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: focusedPoint != null
-                  ? _FocusedPointOverlay(
-                      key: ValueKey<String>(focusedPoint.point.id),
-                      pointContext: focusedPoint,
-                      distanceLabel: _formatDistance(focusedPoint.distance),
-                      zoneColor: _zoneColor(focusedPoint.zone),
-                      onViewZonePoints: () =>
-                          _showZonePoints(focusedPoint.zone, userPosition),
-                    )
+                  ? (_isOverlayExpanded
+                      ? _FocusedPointOverlay(
+                          key: ValueKey<String>('expanded_${focusedPoint.point.id}'),
+                          pointContext: focusedPoint,
+                          distanceLabel: _formatDistance(focusedPoint.distance),
+                          zoneColor: _zoneColor(focusedPoint.zone),
+                          onViewZonePoints: () =>
+                              _showZonePoints(focusedPoint.zone, userPosition),
+                          onCollapse: () =>
+                              setState(() => _isOverlayExpanded = false),
+                        )
+                      : _WarningIconOverlay(
+                          key: ValueKey<String>('icon_${focusedPoint.point.id}'),
+                          pointContext: focusedPoint,
+                          distanceLabel: _formatDistance(focusedPoint.distance),
+                          zoneColor: _zoneColor(focusedPoint.zone),
+                          onTap: () =>
+                              setState(() => _isOverlayExpanded = true),
+                        ))
                   : const SizedBox.shrink(),
             ),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
+                color: Colors.black.withValues(alpha: 0.50),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Header compacto
                   Row(
                     children: [
-                      const Icon(Icons.assistant_photo, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
+                      const Icon(Icons.assistant_photo, color: Colors.white54, size: 14),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Puntos de peligro cercanos (${points.length})',
+                          'Cercanos (${points.length})',
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
+                      Text(
+                        '${_heading.toStringAsFixed(0)}°',
+                        style: const TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   if (points.isEmpty)
                     const Text(
-                      'No hay puntos registrados a 1.2 km a la redonda.',
-                      style: TextStyle(color: Colors.white70),
+                      'Sin puntos a 1.2 km',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
                     )
                   else
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * 0.45,
+                        maxHeight: constraints.maxHeight * 0.28,
                       ),
                       child: ListView.builder(
                         itemCount: points.length,
                         shrinkWrap: true,
+                        padding: EdgeInsets.zero,
                         itemBuilder: (BuildContext context, int index) {
                           final _PointContext pointContext = points[index];
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white12),
-                            ),
+                          final Color zoneCol = _zoneColor(pointContext.zone);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
                             child: Row(
                               children: [
                                 Transform.rotate(
                                   angle: pointContext.relativeBearing * math.pi / 180,
                                   child: Icon(
                                     Icons.navigation_rounded,
-                                    color: _zoneColor(pointContext.zone),
-                                    size: 28,
+                                    color: zoneCol,
+                                    size: 16,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 6),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${pointContext.point.title} | ${_formatDistance(pointContext.distance)}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        pointContext.zone.title,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    '${pointContext.point.title}  ${_formatDistance(pointContext.distance)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '${pointContext.relativeBearing.toStringAsFixed(0)}°',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Radio ${pointContext.point.radius.toStringAsFixed(0)} m',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  '${pointContext.relativeBearing.toStringAsFixed(0)}°',
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),
@@ -651,12 +654,14 @@ class _FocusedPointOverlay extends StatelessWidget {
     required this.distanceLabel,
     required this.zoneColor,
     required this.onViewZonePoints,
+    required this.onCollapse,
   });
 
   final _PointContext pointContext;
   final String distanceLabel;
   final Color zoneColor;
   final VoidCallback onViewZonePoints;
+  final VoidCallback onCollapse;
 
   @override
   Widget build(BuildContext context) {
@@ -666,7 +671,7 @@ class _FocusedPointOverlay extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: zoneColor.withValues(alpha: 0.6), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -675,7 +680,7 @@ class _FocusedPointOverlay extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.place, color: zoneColor),
+              Icon(Icons.warning_amber_rounded, color: zoneColor, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -695,6 +700,18 @@ class _FocusedPointOverlay extends StatelessWidget {
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ],
+                ),
+              ),
+              // Collapse button
+              GestureDetector(
+                onTap: onCollapse,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white70, size: 18),
                 ),
               ),
             ],
@@ -744,6 +761,122 @@ class _FocusedPointOverlay extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Compact warning icon shown before the user taps ──────────────────────────
+class _WarningIconOverlay extends StatefulWidget {
+  const _WarningIconOverlay({
+    super.key,
+    required this.pointContext,
+    required this.distanceLabel,
+    required this.zoneColor,
+    required this.onTap,
+  });
+
+  final _PointContext pointContext;
+  final String distanceLabel;
+  final Color zoneColor;
+  final VoidCallback onTap;
+
+  @override
+  State<_WarningIconOverlay> createState() => _WarningIconOverlayState();
+}
+
+class _WarningIconOverlayState extends State<_WarningIconOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = widget.zoneColor;
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.70),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pulsing warning icon
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: color,
+                size: 36,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.pointContext.point.title,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.distanceLabel,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'Ver info',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
