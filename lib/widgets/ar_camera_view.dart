@@ -370,109 +370,85 @@ class _ArCameraViewState extends State<ArCameraView> {
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
+                color: Colors.black.withValues(alpha: 0.50),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Header compacto
                   Row(
                     children: [
-                      const Icon(Icons.assistant_photo, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
+                      const Icon(Icons.assistant_photo, color: Colors.white54, size: 14),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Puntos de peligro cercanos (${points.length})',
+                          'Cercanos (${points.length})',
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      _StatusChip(label: 'Heading', value: '${_heading.toStringAsFixed(0)}°'),
+                      Text(
+                        '${_heading.toStringAsFixed(0)}°',
+                        style: const TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   if (points.isEmpty)
                     const Text(
-                      'No hay puntos registrados a 1.2 km a la redonda.',
-                      style: TextStyle(color: Colors.white70),
+                      'Sin puntos a 1.2 km',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
                     )
                   else
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * 0.45,
+                        maxHeight: constraints.maxHeight * 0.28,
                       ),
                       child: ListView.builder(
                         itemCount: points.length,
                         shrinkWrap: true,
+                        padding: EdgeInsets.zero,
                         itemBuilder: (BuildContext context, int index) {
                           final _PointContext pointContext = points[index];
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white12),
-                            ),
+                          final Color zoneCol = _zoneColor(pointContext.zone);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
                             child: Row(
                               children: [
                                 Transform.rotate(
                                   angle: pointContext.relativeBearing * math.pi / 180,
                                   child: Icon(
                                     Icons.navigation_rounded,
-                                    color: _zoneColor(pointContext.zone),
-                                    size: 28,
+                                    color: zoneCol,
+                                    size: 16,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 6),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${pointContext.point.title} | ${_formatDistance(pointContext.distance)}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        pointContext.zone.title,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    '${pointContext.point.title}  ${_formatDistance(pointContext.distance)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '${pointContext.relativeBearing.toStringAsFixed(0)}°',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Radio ${pointContext.point.radius.toStringAsFixed(0)} m',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  '${pointContext.relativeBearing.toStringAsFixed(0)}°',
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),
