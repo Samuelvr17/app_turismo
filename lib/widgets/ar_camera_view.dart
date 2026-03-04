@@ -43,6 +43,10 @@ class _ArCameraViewState extends State<ArCameraView> {
   String? _cameraError;
   DateTime _lastUiUpdate = DateTime.now();
 
+  // Overlay state: whether the full detail panel is expanded
+  bool _isOverlayExpanded = false;
+  String? _focusedPointId;
+
   @override
   void initState() {
     super.initState();
@@ -320,6 +324,18 @@ class _ArCameraViewState extends State<ArCameraView> {
     final _PointContext? focusedPoint =
         pointsInFov.isNotEmpty ? pointsInFov.first : null;
 
+    // Reset expanded state when the focused point changes
+    if (focusedPoint?.point.id != _focusedPointId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isOverlayExpanded = false;
+            _focusedPointId = focusedPoint?.point.id;
+          });
+        }
+      });
+    }
+
     return Align(
       alignment: Alignment.topCenter,
       child: Padding(
@@ -330,14 +346,25 @@ class _ArCameraViewState extends State<ArCameraView> {
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: focusedPoint != null
-                  ? _FocusedPointOverlay(
-                      key: ValueKey<String>(focusedPoint.point.id),
-                      pointContext: focusedPoint,
-                      distanceLabel: _formatDistance(focusedPoint.distance),
-                      zoneColor: _zoneColor(focusedPoint.zone),
-                      onViewZonePoints: () =>
-                          _showZonePoints(focusedPoint.zone, userPosition),
-                    )
+                  ? (_isOverlayExpanded
+                      ? _FocusedPointOverlay(
+                          key: ValueKey<String>('expanded_${focusedPoint.point.id}'),
+                          pointContext: focusedPoint,
+                          distanceLabel: _formatDistance(focusedPoint.distance),
+                          zoneColor: _zoneColor(focusedPoint.zone),
+                          onViewZonePoints: () =>
+                              _showZonePoints(focusedPoint.zone, userPosition),
+                          onCollapse: () =>
+                              setState(() => _isOverlayExpanded = false),
+                        )
+                      : _WarningIconOverlay(
+                          key: ValueKey<String>('icon_${focusedPoint.point.id}'),
+                          pointContext: focusedPoint,
+                          distanceLabel: _formatDistance(focusedPoint.distance),
+                          zoneColor: _zoneColor(focusedPoint.zone),
+                          onTap: () =>
+                              setState(() => _isOverlayExpanded = true),
+                        ))
                   : const SizedBox.shrink(),
             ),
             const SizedBox(height: 10),
@@ -651,12 +678,14 @@ class _FocusedPointOverlay extends StatelessWidget {
     required this.distanceLabel,
     required this.zoneColor,
     required this.onViewZonePoints,
+    required this.onCollapse,
   });
 
   final _PointContext pointContext;
   final String distanceLabel;
   final Color zoneColor;
   final VoidCallback onViewZonePoints;
+  final VoidCallback onCollapse;
 
   @override
   Widget build(BuildContext context) {
@@ -666,7 +695,7 @@ class _FocusedPointOverlay extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: zoneColor.withValues(alpha: 0.6), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -675,7 +704,7 @@ class _FocusedPointOverlay extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.place, color: zoneColor),
+              Icon(Icons.warning_amber_rounded, color: zoneColor, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -695,6 +724,18 @@ class _FocusedPointOverlay extends StatelessWidget {
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ],
+                ),
+              ),
+              // Collapse button
+              GestureDetector(
+                onTap: onCollapse,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white70, size: 18),
                 ),
               ),
             ],
@@ -744,6 +785,122 @@ class _FocusedPointOverlay extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Compact warning icon shown before the user taps ──────────────────────────
+class _WarningIconOverlay extends StatefulWidget {
+  const _WarningIconOverlay({
+    super.key,
+    required this.pointContext,
+    required this.distanceLabel,
+    required this.zoneColor,
+    required this.onTap,
+  });
+
+  final _PointContext pointContext;
+  final String distanceLabel;
+  final Color zoneColor;
+  final VoidCallback onTap;
+
+  @override
+  State<_WarningIconOverlay> createState() => _WarningIconOverlayState();
+}
+
+class _WarningIconOverlayState extends State<_WarningIconOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = widget.zoneColor;
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.70),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pulsing warning icon
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: color,
+                size: 36,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.pointContext.point.title,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.distanceLabel,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'Ver info',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
