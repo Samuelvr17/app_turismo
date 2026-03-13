@@ -1,0 +1,15 @@
+UPDATE danger_zones SET description = 'Punto del área de alto riesgo por fenómenos de remoción en masa' WHERE title = 'Punto 1';
+UPDATE danger_zones SET description = 'Punto del área de alto riesgo por fenómenos de remoción en masa' WHERE title = 'Punto 2';
+UPDATE danger_zones SET description = 'PUNTOS CRITICOS POR MOVIMIENTOS EN MASA SOBRE EL EJE VIAL BOGOTÁ VILLAVICENCIO, JURISDICCIÓN DE CORMACARENA, DEPARTAMENTO DEL META' WHERE title = 'Punto 3';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo, por problemas causados en la via existente en la vereda Buenavista sector de la U, en el municipio Villavicencio, Departamento del Meta.' WHERE title = 'Punto 4';
+UPDATE danger_zones SET description = 'Gestion del riesgo por deslizamiento en Villavicencio.' WHERE title = 'Punto 5';
+UPDATE danger_zones SET description = 'Gestion del riesgo por deslizamiento en Villavicencio.' WHERE title = 'Punto 6';
+UPDATE danger_zones SET description = 'Gestion del riesgo por deslizamiento en Villavicencio.' WHERE title = 'Punto 7';
+UPDATE danger_zones SET description = 'PUNTOS CRITICOS POR MOVIMIENTOS EN MASA SOBRE EL EJE VIAL BOGOTÁ VILLAVICENCIO, JURISDICCIÓN DE CORMACARENA, DEPARTAMENTO DEL META' WHERE title = 'Punto 8';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo por deslizamiento de la curva del Tigre.' WHERE title = 'Punto 9';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo, por problemas causados en la via existente en la vereda Buenavista sector de la U, en el municipio Villavicencio, Departamento del Meta.' WHERE title = 'Punto 10';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo, por problemas causados en la via existente en la vereda Buenavista sector de la U, en el municipio Villavicencio, Departamento del Meta.' WHERE title = 'Punto 11';
+UPDATE danger_zones SET description = 'Asistencia técnica de gestión del riesgo por colapso de muro de contención en la calle 44 barrio nueva granada vía Bogotá - Villavicencio, margen derecha caño Seco' WHERE title = 'Punto 12';
+UPDATE danger_zones SET description = 'Riesgo de colapso de un muro de contención sobre el caño Seco, barrio Nueva Granada' WHERE title = 'Punto 13';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo, por erasión del talud sobre el que se ubica la via de acceso a la quebrada Honda y seis (6) viviendas, localiado a la margen derecha de la Quebrada Honda, en el Barrio Los Alcazeres, en el municipio Villavicenci' WHERE title = 'Punto 14';
+UPDATE danger_zones SET description = 'Asistencia tecnica de gestion del riesgo, por erasión del talud sobre el que se ubica la via de acceso a la quebrada Honda y seis (6) viviendas, localiado a la margen derecha de la Quebrada Honda, en el Barrio Los Alcazeres, en el municipio Villavicencio' WHERE title = 'Punto 15';

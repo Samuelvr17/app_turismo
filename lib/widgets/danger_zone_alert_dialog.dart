@@ -18,21 +18,25 @@ class DangerZoneAlertDialog extends StatelessWidget {
     switch (zone.level) {
       case DangerLevel.high:
         return Colors.red.shade700;
-      case DangerLevel.medium:
+      case DangerLevel.massMovement:
         return Colors.orange.shade700;
-      case DangerLevel.low:
+      case DangerLevel.monitored:
         return Colors.yellow.shade800;
+      case DangerLevel.low:
+        return Colors.green.shade700;
     }
   }
 
   String _badgeLabel() {
     switch (zone.level) {
       case DangerLevel.high:
-        return 'Alta';
-      case DangerLevel.medium:
-        return 'Media';
+        return 'Alto riesgo';
+      case DangerLevel.massMovement:
+        return 'Movimientos en masa o deslizamientos';
+      case DangerLevel.monitored:
+        return 'Puntos con asistencia o seguimiento técnico';
       case DangerLevel.low:
-        return 'Baja';
+        return 'Riesgo bajo';
     }
   }
 

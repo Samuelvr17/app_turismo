@@ -397,10 +397,12 @@ class _MapaPageState extends State<MapaPage> {
     switch (zone.level) {
       case DangerLevel.high:
         return Colors.red;
-      case DangerLevel.medium:
+      case DangerLevel.massMovement:
         return Colors.orange;
-      case DangerLevel.low:
+      case DangerLevel.monitored:
         return Colors.yellow.shade700;
+      case DangerLevel.low:
+        return Colors.green;
     }
   }
 

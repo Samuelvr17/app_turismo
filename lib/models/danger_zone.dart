@@ -1,7 +1,7 @@
 import 'danger_zone_point.dart';
 import 'geo_point.dart';
 
-enum DangerLevel { high, medium, low }
+enum DangerLevel { high, massMovement, monitored, low }
 
 class DangerZone {
   const DangerZone({
@@ -41,10 +41,11 @@ class DangerZone {
         (json['danger_level'] as String? ?? json['level'] as String? ?? '')
             .toLowerCase();
     final DangerLevel level = switch (levelValue) {
-      'alta' || 'high' => DangerLevel.high,
-      'media' || 'medium' => DangerLevel.medium,
-      'baja' || 'low' => DangerLevel.low,
-      _ => DangerLevel.medium,
+      'alto riesgo' || 'alta' || 'high' => DangerLevel.high,
+      'movimientos en masa o deslizamientos' => DangerLevel.massMovement,
+      'puntos con asistencia o seguimiento técnico' || 'media' || 'medium' => DangerLevel.monitored,
+      'riesgo bajo' || 'baja' || 'low' => DangerLevel.low,
+      _ => DangerLevel.low,
     };
 
     final double latitude = (json['latitude'] as num?)?.toDouble() ?? 0;
