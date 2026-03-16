@@ -65,3 +65,15 @@ por_hacer.txt
 devtools_options.yaml
 
 venv/
+
+# Supabase CLI - archivos temporales locales con datos sensibles
+# Incluye URLs de conexión a BD, project ref y versiones de servicios internos
+supabase/.temp/
+
+# ArcGIS Maps SDK - symlink a caché local de la máquina de desarrollo
+# La ruta absoluta dentro no funciona en otros equipos
+arcgis_maps_core
+
+# Python - caché de bytecode del servicio de IA (ai_service/)
+__pycache__/
+*.pyo
