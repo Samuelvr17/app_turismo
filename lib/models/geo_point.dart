@@ -19,6 +19,20 @@ class GeoPoint {
   @override
   int get hashCode => latitude.hashCode ^ longitude.hashCode;
 
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+    };
+  }
+
+  factory GeoPoint.fromJson(Map<String, dynamic> json) {
+    return GeoPoint(
+      (json['latitude'] as num).toDouble(),
+      (json['longitude'] as num).toDouble(),
+    );
+  }
+
   @override
   String toString() => 'GeoPoint($latitude, $longitude)';
 }

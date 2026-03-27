@@ -14,13 +14,17 @@ class LocalStorageService {
   static final LocalStorageService instance = LocalStorageService._();
 
   static const String _reportsBoxNamePrefix = 'reports_box';
+  static const String _dangerZonesBoxNamePrefix = 'danger_zones_box';
   static const String _preferencesKey = 'user_preferences';
   static const String _safeRoutesKey = 'safe_routes_cache';
+  static const String _dangerZonesKey = 'danger_zones_cache';
+  static const String _dangerZonesTimestampKey = 'danger_zones_cache_timestamp';
 
   bool _baseInitialized = false;
   String? _currentUserId;
   SharedPreferences? _preferences;
   Box<dynamic>? _reportsBox;
+  Box<dynamic>? _dangerZonesBox;
 
   final ValueNotifier<List<Report>> _reportsNotifier =
       ValueNotifier<List<Report>>(<Report>[]);
@@ -48,8 +52,13 @@ class LocalStorageService {
 
     _currentUserId = userId;
     await _reportsBox?.close();
+    await _dangerZonesBox?.close();
+    
     _reportsBox = await Hive.openBox<dynamic>(
       _reportsBoxNameForUser(userId),
+    );
+    _dangerZonesBox = await Hive.openBox<dynamic>(
+      _dangerZonesBoxNameForUser(userId),
     );
 
     await _loadStoredReports();
@@ -281,7 +290,9 @@ class LocalStorageService {
 
   Future<void> clearForSignOut() async {
     await _reportsBox?.close();
+    await _dangerZonesBox?.close();
     _reportsBox = null;
+    _dangerZonesBox = null;
     _currentUserId = null;
     _reportsNotifier.value = <Report>[];
     _preferencesNotifier.value = UserPreferences.defaults;
@@ -299,7 +310,78 @@ class LocalStorageService {
   String _reportsBoxNameForUser(String userId) =>
       '${_reportsBoxNamePrefix}_$userId';
 
+  String _dangerZonesBoxNameForUser(String userId) =>
+      '${_dangerZonesBoxNamePrefix}_$userId';
+
   String _preferencesStorageKey(String userId) => '${userId}_$_preferencesKey';
 
   String _safeRoutesStorageKey(String userId) => '${userId}_$_safeRoutesKey';
+
+  String _dangerZonesTimestampStorageKey(String userId) =>
+      '${userId}_$_dangerZonesTimestampKey';
+
+  Future<void> cacheDangerZones(List<DangerZone> zones) async {
+    await _ensureConfigured();
+    final Box<dynamic>? box = _dangerZonesBox;
+    final SharedPreferences? prefs = _preferences;
+    final String? userId = _currentUserId;
+
+    if (box == null || prefs == null || userId == null) {
+      return;
+    }
+
+    await box.clear();
+    for (final DangerZone zone in zones) {
+      await box.put(zone.id, zone.toJson());
+    }
+
+    // Guardar timestamp
+    final String timestamp = DateTime.now().toIso8601String();
+    await prefs.setString(_dangerZonesTimestampStorageKey(userId), timestamp);
+  }
+
+  Future<List<DangerZone>> loadCachedDangerZones() async {
+    await _ensureConfigured();
+    final Box<dynamic>? box = _dangerZonesBox;
+    if (box == null) {
+      return <DangerZone>[];
+    }
+
+    final List<DangerZone> zones = <DangerZone>[];
+    for (final dynamic key in box.keys) {
+      final dynamic raw = box.get(key);
+      if (raw == null) {
+        continue;
+      }
+
+      try {
+        final Map<String, dynamic> serialized =
+            Map<String, dynamic>.from(raw as Map<dynamic, dynamic>);
+        zones.add(DangerZone.fromJson(serialized));
+      } catch (e) {
+        debugPrint('Error al cargar zona de peligro "$key" desde cache: $e');
+      }
+    }
+
+    return zones;
+  }
+
+  DateTime? getDangerZonesCacheTimestamp() {
+    final String? userId = _currentUserId;
+    final SharedPreferences? prefs = _preferences;
+    if (userId == null || prefs == null) {
+      return null;
+    }
+
+    final String? raw = prefs.getString(_dangerZonesTimestampStorageKey(userId));
+    if (raw == null) {
+      return null;
+    }
+
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
 }

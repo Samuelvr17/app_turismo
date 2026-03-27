@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/report.dart';
@@ -22,6 +24,8 @@ class StorageService {
   bool _baseInitialized = false;
   bool _isUserInitialized = false;
   String? _currentUserId;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isSyncing = false;
 
   Future<void> initialize() async {
     if (_baseInitialized) {
@@ -49,6 +53,17 @@ class StorageService {
     ]);
 
     _isUserInitialized = true;
+    _startConnectivityListener();
+  }
+
+  void _startConnectivityListener() {
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final bool hasConnection = results.any((result) => result != ConnectivityResult.none);
+      if (hasConnection) {
+        unawaited(syncPendingReports());
+      }
+    });
   }
 
   Future<void> _syncReportsFromSupabase(String userId) async {
@@ -118,16 +133,74 @@ class StorageService {
 
     final String userId = _requiredUserId;
 
-    final Report report = await _supabase.saveReport(
-      userId: userId,
-      type: type,
-      description: description,
-      latitude: latitude,
-      longitude: longitude,
-    );
+    Report? report;
 
-    await _localStorage.saveReport(report: report);
+    try {
+      report = await _supabase.saveReport(
+        userId: userId,
+        type: type,
+        description: description,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      // report returns isSynced: true by default from Supabase
+    } catch (e) {
+      debugPrint('Error al guardar reporte en Supabase, guardando localmente: $e');
+      // Crear reporte local temporal
+      report = Report(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        typeId: type.id,
+        description: description,
+        createdAt: DateTime.now(),
+        latitude: latitude,
+        longitude: longitude,
+        isSynced: false,
+      );
+    }
+
+    await _localStorage.saveReport(report: report!);
     return report;
+  }
+
+  Future<void> syncPendingReports() async {
+    if (_isSyncing || !_isUserInitialized) {
+      return;
+    }
+    _isSyncing = true;
+
+    try {
+      final String userId = _currentUserId!;
+      final List<Report> allReports = _localStorage.reports;
+      final List<Report> pendingReports =
+          allReports.where((Report r) => !r.isSynced).toList();
+
+      if (pendingReports.isEmpty) {
+        return;
+      }
+
+      debugPrint('Sincronizando ${pendingReports.length} reportes pendientes...');
+
+      for (final Report pending in pendingReports) {
+        try {
+          final Report synced = await _supabase.saveReport(
+            userId: userId,
+            type: ReportType.fromId(pending.typeId),
+            description: pending.description,
+            latitude: pending.latitude,
+            longitude: pending.longitude,
+          );
+
+          // Eliminar el local temporal y guardar el sincronizado
+          await _localStorage.removeCachedReport(pending.id);
+          await _localStorage.saveReport(report: synced);
+        } catch (e) {
+          debugPrint('No se pudo sincronizar reporte ${pending.id}: $e');
+          // Continuar con el siguiente
+        }
+      }
+    } finally {
+      _isSyncing = false;
+    }
   }
 
   Future<void> deleteReport(String id) async {
@@ -173,6 +246,8 @@ class StorageService {
   Future<void> clearForSignOut() async {
     _isUserInitialized = false;
     _currentUserId = null;
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
     await _localStorage.clearForSignOut();
   }
 

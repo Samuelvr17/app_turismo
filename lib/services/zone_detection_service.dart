@@ -1,16 +1,35 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/danger_zone.dart';
+import 'local_storage_service.dart';
 import 'supabase_service.dart';
 
 class ZoneDetectionService {
-  ZoneDetectionService({SupabaseService? supabase})
-      : _supabase = supabase ?? SupabaseService.instance;
+  ZoneDetectionService({
+    SupabaseService? supabase,
+    LocalStorageService? localStorage,
+  })  : _supabase = supabase ?? SupabaseService.instance,
+        _localStorage = localStorage ?? LocalStorageService.instance;
 
   final SupabaseService _supabase;
+  final LocalStorageService _localStorage;
 
   Future<List<DangerZone>> loadDangerZones() async {
-    return _supabase.getDangerZonesWithPoints();
+    try {
+      final List<DangerZone> zones = await _supabase.getDangerZonesWithPoints();
+      
+      // Cachear datos exitosos
+      await _localStorage.cacheDangerZones(zones);
+      
+      return zones;
+    } catch (e) {
+      debugPrint('Error al cargar zonas de peligro desde Supabase: $e');
+      
+      // Fallback a cache local
+      final List<DangerZone> cachedZones = await _localStorage.loadCachedDangerZones();
+      return cachedZones;
+    }
   }
 
   DangerZone? findDangerZone({

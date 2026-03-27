@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/danger_zone.dart';
 import '../models/geo_point.dart';
 import '../services/location_service.dart';
+import '../services/local_storage_service.dart';
 import '../services/zone_detection_service.dart';
 import '../widgets/ar_camera_view.dart';
 import '../widgets/danger_zone_alert_dialog.dart';
@@ -29,6 +30,7 @@ class _MapaPageState extends State<MapaPage> {
   List<DangerZone> _dangerZones = const <DangerZone>[];
   bool _zonesLoading = true;
   String? _zonesError;
+  DateTime? _cacheTimestamp;
 
   final ArcGISMapViewController _mapViewController = ArcGISMapView.createController();
   Position? _currentPosition;
@@ -250,6 +252,7 @@ class _MapaPageState extends State<MapaPage> {
       setState(() {
         _dangerZones = zones;
         _zonesLoading = false;
+        _cacheTimestamp = LocalStorageService.instance.getDangerZonesCacheTimestamp();
       });
 
       _updateDangerZoneGraphics();
@@ -406,6 +409,21 @@ class _MapaPageState extends State<MapaPage> {
     }
   }
 
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'Recién actualizado';
+    } else if (difference.inMinutes < 60) {
+      return 'Hace ${difference.inMinutes} min';
+    } else if (difference.inHours < 24) {
+      return 'Hace ${difference.inHours} h';
+    } else {
+      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget body;
@@ -471,6 +489,36 @@ class _MapaPageState extends State<MapaPage> {
                         _zonesError!,
                         style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (_cacheTimestamp != null && _zonesError == null)
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Material(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(16),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.history,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Datos de: ${_formatTimestamp(_cacheTimestamp!)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ],
                 ),

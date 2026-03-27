@@ -9,6 +9,7 @@ class Report {
     required this.createdAt,
     this.latitude,
     this.longitude,
+    this.isSynced = true,
   });
 
   final String id;
@@ -17,6 +18,7 @@ class Report {
   final DateTime createdAt;
   final double? latitude;
   final double? longitude;
+  final bool isSynced;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -26,6 +28,7 @@ class Report {
       'createdAt': createdAt.toIso8601String(),
       'latitude': latitude,
       'longitude': longitude,
+      'isSynced': isSynced,
     };
   }
 
@@ -38,6 +41,7 @@ class Report {
           DateTime.fromMillisecondsSinceEpoch(0),
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      isSynced: json['isSynced'] as bool? ?? true,
     );
   }
 
@@ -48,6 +52,7 @@ class Report {
     DateTime? createdAt,
     double? latitude,
     double? longitude,
+    bool? isSynced,
     bool resetLatitude = false,
     bool resetLongitude = false,
   }) {
@@ -58,6 +63,7 @@ class Report {
       createdAt: createdAt ?? this.createdAt,
       latitude: resetLatitude ? null : latitude ?? this.latitude,
       longitude: resetLongitude ? null : longitude ?? this.longitude,
+      isSynced: isSynced ?? this.isSynced,
     );
   }
 }

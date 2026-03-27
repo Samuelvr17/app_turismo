@@ -75,4 +75,31 @@ class DangerZone {
       overlayHeight: (json['overlay_height'] as num?)?.toDouble() ?? defaultOverlayHeight,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'latitude': center.latitude,
+      'longitude': center.longitude,
+      'title': title,
+      'description': description,
+      'specific_dangers': specificDangers,
+      'precautions': precautions,
+      'security_recommendations': securityRecommendations,
+      'danger_level': _levelToString(level),
+      'points': points.map((p) => p.toJson()).toList(),
+      'radius': radius,
+      'altitude': altitude,
+      'overlay_height': overlayHeight,
+    };
+  }
+
+  static String _levelToString(DangerLevel level) {
+    return switch (level) {
+      DangerLevel.high => 'high',
+      DangerLevel.massMovement => 'movimientos en masa o deslizamientos',
+      DangerLevel.monitored => 'puntos con asistencia o seguimiento técnico',
+      DangerLevel.low => 'low',
+    };
+  }
 }

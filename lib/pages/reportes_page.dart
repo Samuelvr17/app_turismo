@@ -315,17 +315,22 @@ class _ReportesPageState extends State<ReportesPage> {
   Widget _buildReportsSection(BuildContext context, List<Report> reports) {
     final ThemeData theme = Theme.of(context);
 
+    final List<Report> pendingReports =
+        reports.where((Report r) => !r.isSynced).toList();
+    final List<Report> syncedReports =
+        reports.where((Report r) => r.isSynced).toList();
+
     if (reports.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Reportes sincronizados',
+            'Reportes',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'Aún no has registrado reportes en la nube. Completa el formulario para crear el primero.',
+            'Aún no has registrado reportes. Completa el formulario para crear el primero (funciona incluso sin internet).',
             style: theme.textTheme.bodyMedium,
           ),
         ],
@@ -335,18 +340,45 @@ class _ReportesPageState extends State<ReportesPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          'Reportes sincronizados',
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        ...List<Widget>.generate(reports.length, (int index) {
-          final Report report = reports[index];
-          return Padding(
-            padding: EdgeInsets.only(bottom: index == reports.length - 1 ? 0 : 12),
-            child: _buildReportCard(context, report),
-          );
-        }),
+        if (pendingReports.isNotEmpty) ...<Widget>[
+          Row(
+            children: <Widget>[
+              Text(
+                'Reportes pendientes',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.cloud_off, size: 18, color: Colors.orange),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () =>
+                    unawaited(_storageService.syncPendingReports()),
+                icon: const Icon(Icons.sync, size: 16),
+                label: const Text('Sincronizar'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...pendingReports.map((Report report) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildReportCard(context, report),
+              )),
+          const Divider(height: 32),
+        ],
+        if (syncedReports.isNotEmpty) ...<Widget>[
+          Text(
+            'Reportes sincronizados',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          ...syncedReports.map((Report report) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildReportCard(context, report),
+              )),
+        ],
       ],
     );
   }
@@ -375,11 +407,32 @@ class _ReportesPageState extends State<ReportesPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        type.label,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            type.label,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (!report.isSynced) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'PENDIENTE',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onErrorContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -391,7 +444,7 @@ class _ReportesPageState extends State<ReportesPage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Eliminar reporte',
+                  tooltip: report.isSynced ? 'Eliminar reporte' : 'Descartar pendiente',
                   onPressed: () => unawaited(_removeReport(report)),
                 ),
               ],
@@ -478,7 +531,12 @@ class _ReportesPageState extends State<ReportesPage> {
 
       _descriptionController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reporte sincronizado en la nube.')),
+        SnackBar(
+          content: Text(report.isSynced
+              ? 'Reporte sincronizado en la nube.'
+              : 'Sin internet. Reporte guardado localmente para sincronizar luego.'),
+          backgroundColor: report.isSynced ? null : Colors.orange.shade800,
+        ),
       );
     } catch (error) {
       if (mounted) {
