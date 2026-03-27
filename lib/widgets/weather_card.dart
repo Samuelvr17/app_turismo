@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/weather_data.dart';
@@ -6,9 +7,15 @@ class WeatherCard extends StatelessWidget {
   const WeatherCard({
     super.key,
     required this.weatherData,
+    this.syncTime,
   });
 
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   final WeatherData weatherData;
+  final DateTime? syncTime;
 
   @override
   Widget build(BuildContext context) {
@@ -37,18 +44,20 @@ class WeatherCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Icon(
-                  Icons.refresh,
-                  size: 16,
-                  color: theme.colorScheme.outline,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Actualiza cada 12 min',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                if (syncTime != null)
+                  Text(
+                    'Actualizado: ${_formatTime(syncTime!)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  )
+                else
+                  Text(
+                    'Actualiza cada 12 min',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -83,17 +92,23 @@ class WeatherCard extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: Image.network(
-                    weatherData.iconUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: weatherData.iconUrl,
                     width: 80,
                     height: 80,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.cloud,
-                        size: 80,
-                        color: theme.colorScheme.outline,
-                      );
-                    },
+                    placeholder: (BuildContext context, String url) => const Center(
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (BuildContext context, String url, dynamic error) =>
+                        Icon(
+                      Icons.cloud,
+                      size: 80,
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ),
               ],

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:hive_ce/hive_ce.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/activity_recommendation.dart';
@@ -25,6 +26,12 @@ class ActivitySurveyService {
 
   String? _currentUserId;
   bool _isInitialized = false;
+  bool _isUsingCachedRecommendations = false;
+  DateTime? _recommendationsCacheDate;
+
+  static const String _surveyBoxName = 'activity_surveys_cache';
+  static const String _recommendationsBoxName = 'activity_recommendations_cache';
+  static const String _cacheDateBoxName = 'recommendations_metadata';
 
   final ValueNotifier<ActivitySurvey?> _surveyNotifier =
       ValueNotifier<ActivitySurvey?>(null);
@@ -36,6 +43,8 @@ class ActivitySurveyService {
       _recommendationsNotifier;
 
   bool get hasCompletedSurvey => _surveyNotifier.value != null;
+  bool get isUsingCachedRecommendations => _isUsingCachedRecommendations;
+  DateTime? get recommendationsCacheDate => _recommendationsCacheDate;
 
   Future<void> initializeForUser(String userId) async {
     if (_isInitialized && _currentUserId == userId) {
@@ -47,9 +56,14 @@ class ActivitySurveyService {
     try {
       final ActivitySurvey? survey = await _fetchSurvey(userId);
       _surveyNotifier.value = survey;
+      if (survey != null) {
+        await _saveSurveyToLocal(userId, survey);
+      }
     } catch (error) {
-      debugPrint('Error al cargar encuesta del usuario: $error');
-      _surveyNotifier.value = null;
+      debugPrint('Error al cargar encuesta de Supabase: $error');
+      // Intentar cargar desde caché local
+      final ActivitySurvey? cachedSurvey = await _loadSurveyFromLocal(userId);
+      _surveyNotifier.value = cachedSurvey;
     }
 
     try {
@@ -57,13 +71,74 @@ class ActivitySurveyService {
           await _fetchRecommendations(userId);
       _recommendationsNotifier.value =
           List<ActivityRecommendation>.from(recommendations);
+      _isUsingCachedRecommendations = false;
+      _recommendationsCacheDate = null;
+      
+      if (recommendations.isNotEmpty) {
+        await _saveRecommendationsToLocal(userId, recommendations);
+      }
     } catch (error) {
-      debugPrint('Error al cargar recomendaciones del usuario: $error');
-      _recommendationsNotifier.value = <ActivityRecommendation>[];
+      debugPrint('Error al cargar recomendaciones de Supabase: $error');
+      // Intentar cargar desde caché local
+      final List<ActivityRecommendation> cachedRecs = 
+          await _loadRecommendationsFromLocal(userId);
+      _recommendationsNotifier.value = List<ActivityRecommendation>.from(cachedRecs);
+      _isUsingCachedRecommendations = cachedRecs.isNotEmpty;
+      
+      if (_isUsingCachedRecommendations) {
+        _recommendationsCacheDate = await _getRecommendationsCacheDate(userId);
+      }
     }
 
     _isInitialized = true;
   }
+
+  // --- Métodos de Caché Local ---
+
+  Future<void> _saveSurveyToLocal(String userId, ActivitySurvey survey) async {
+    final box = await Hive.openBox(_surveyBoxName);
+    await box.put(userId, survey.toJson());
+  }
+
+  Future<ActivitySurvey?> _loadSurveyFromLocal(String userId) async {
+    final box = await Hive.openBox(_surveyBoxName);
+    final data = box.get(userId);
+    if (data == null) return null;
+    return ActivitySurvey.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  Future<void> _saveRecommendationsToLocal(
+    String userId, 
+    List<ActivityRecommendation> recommendations,
+  ) async {
+    final box = await Hive.openBox(_recommendationsBoxName);
+    final metaBox = await Hive.openBox(_cacheDateBoxName);
+    
+    final List<Map<String, dynamic>> rawRecs = 
+        recommendations.map((r) => r.toJson()).toList();
+    
+    await box.put(userId, rawRecs);
+    await metaBox.put('${userId}_date', DateTime.now().toIso8601String());
+  }
+
+  Future<List<ActivityRecommendation>> _loadRecommendationsFromLocal(String userId) async {
+    final box = await Hive.openBox(_recommendationsBoxName);
+    final List<dynamic>? data = box.get(userId);
+    if (data == null) return [];
+    
+    return data.map((item) => 
+      ActivityRecommendation.fromJson(Map<String, dynamic>.from(item))
+    ).toList();
+  }
+
+  Future<DateTime?> _getRecommendationsCacheDate(String userId) async {
+    final metaBox = await Hive.openBox(_cacheDateBoxName);
+    final String? dateStr = metaBox.get('${userId}_date');
+    if (dateStr == null) return null;
+    return DateTime.tryParse(dateStr);
+  }
+
+  // --- Fin Métodos de Caché Local ---
 
   Future<ActivitySurvey?> _fetchSurvey(String userId) async {
     final Map<String, dynamic>? response = await _supabaseClient
@@ -130,6 +205,7 @@ class ActivitySurveyService {
     );
 
     _surveyNotifier.value = surveyToSave;
+    await _saveSurveyToLocal(userId, surveyToSave);
 
     final List<AvailableActivity> availableActivities =
         await _loadAvailableActivities();
@@ -142,8 +218,12 @@ class ActivitySurveyService {
     );
 
     await _persistRecommendations(userId, recommendations);
+    await _saveRecommendationsToLocal(userId, recommendations);
+
     _recommendationsNotifier.value =
         List<ActivityRecommendation>.from(recommendations);
+    _isUsingCachedRecommendations = false;
+    _recommendationsCacheDate = null;
   }
 
   Future<void> refreshRecommendations() async {
@@ -163,8 +243,12 @@ class ActivitySurveyService {
       availableActivities: availableActivities,
     );
     await _persistRecommendations(userId, recommendations);
+    await _saveRecommendationsToLocal(userId, recommendations);
+
     _recommendationsNotifier.value =
         List<ActivityRecommendation>.from(recommendations);
+    _isUsingCachedRecommendations = false;
+    _recommendationsCacheDate = null;
   }
 
   Future<void> _persistRecommendations(

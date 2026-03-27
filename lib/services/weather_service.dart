@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:hive_ce/hive_ce.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/weather_data.dart';
@@ -18,9 +19,15 @@ class WeatherService {
   final ValueNotifier<WeatherData?> _weatherNotifier = ValueNotifier<WeatherData?>(null);
   double? _lastLatitude;
   double? _lastLongitude;
+  DateTime? _lastSyncTime;
+
+  static const String _cacheBoxName = 'weather_cache';
+  static const String _cacheKey = 'last_weather_data';
+  static const String _cacheDateKey = 'last_weather_sync';
   
   ValueListenable<WeatherData?> get weatherListenable => _weatherNotifier;
   WeatherData? get currentWeather => _weatherNotifier.value;
+  DateTime? get lastSyncTime => _lastSyncTime;
   
   void startAutoUpdate({
     required double latitude,
@@ -39,6 +46,11 @@ class WeatherService {
     _updateTimer = Timer.periodic(const Duration(minutes: 12), (_) {
       _updateWeatherData();
     });
+
+    // Cargar caché inicial si existe y no hay datos actuales
+    if (_weatherNotifier.value == null) {
+      _loadFromCache();
+    }
   }
   
   void stopAutoUpdate() {
@@ -54,10 +66,36 @@ class WeatherService {
         latitude: _lastLatitude!,
         longitude: _lastLongitude!,
       );
-      _weatherNotifier.value = weatherData;
+      if (weatherData != null) {
+        _weatherNotifier.value = weatherData;
+        _lastSyncTime = DateTime.now();
+        await _saveToCache(weatherData, _lastSyncTime!);
+      }
     } catch (error) {
       if (kDebugMode) {
         print('Error en actualización automática del clima: $error');
+      }
+      if (_weatherNotifier.value == null) {
+        await _loadFromCache();
+      }
+    }
+  }
+
+  Future<void> _saveToCache(WeatherData data, DateTime syncTime) async {
+    final box = await Hive.openBox(_cacheBoxName);
+    await box.put(_cacheKey, data.toJson());
+    await box.put(_cacheDateKey, syncTime.toIso8601String());
+  }
+
+  Future<void> _loadFromCache() async {
+    final box = await Hive.openBox(_cacheBoxName);
+    final data = box.get(_cacheKey);
+    final dateStr = box.get(_cacheDateKey) as String?;
+
+    if (data != null) {
+      _weatherNotifier.value = WeatherData.fromJson(Map<String, dynamic>.from(data));
+      if (dateStr != null) {
+        _lastSyncTime = DateTime.tryParse(dateStr);
       }
     }
   }

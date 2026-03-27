@@ -17,6 +17,7 @@ import 'services/activity_survey_service.dart';
 import 'services/supabase_service.dart';
 import 'services/storage_service.dart';
 import 'services/auth_service.dart';
+import 'widgets/connectivity_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => ConnectivityBanner(child: child!),
       home: const AuthGate(),
     );
   }

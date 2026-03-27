@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/geo_point.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
@@ -452,52 +453,12 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     final ThemeData theme = Theme.of(context);
     final bool isNetworkImage = imageUrl.startsWith('http');
 
-    Image buildPanoramaChild() {
+    ImageProvider buildPanoramaProvider() {
       if (isNetworkImage) {
-        return Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder:
-              (BuildContext context, Widget child, ImageChunkEvent? progress) {
-            if (progress == null) {
-              return child;
-            }
-            return Center(
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: CircularProgressIndicator(
-                  value: progress.expectedTotalBytes != null
-                      ? progress.cumulativeBytesLoaded /
-                          progress.expectedTotalBytes!
-                      : null,
-                ),
-              ),
-            );
-          },
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stackTrace) {
-            return Container(
-              color: Colors.black12,
-              alignment: Alignment.center,
-              child: const Icon(Icons.broken_image_outlined, size: 48),
-            );
-          },
-        );
+        return CachedNetworkImageProvider(imageUrl);
       }
 
-      return Image.asset(
-        imageUrl,
-        fit: BoxFit.cover,
-        errorBuilder:
-            (BuildContext context, Object error, StackTrace? stackTrace) {
-          return Container(
-            color: Colors.black12,
-            alignment: Alignment.center,
-            child: const Icon(Icons.broken_image_outlined, size: 48),
-          );
-        },
-      );
+      return AssetImage(imageUrl);
     }
 
     return Stack(
@@ -506,7 +467,15 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         PanoramaViewer(
           animSpeed: 0.8,
           sensorControl: SensorControl.orientation,
-          child: buildPanoramaChild(),
+          child: Image(
+            image: buildPanoramaProvider(),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: Colors.black12,
+              alignment: Alignment.center,
+              child: const Icon(Icons.broken_image_outlined, size: 48),
+            ),
+          ),
         ),
         Positioned(
           top: 12,
@@ -584,35 +553,21 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     final bool isNetworkImage = imageUrl.startsWith('http');
 
     if (isNetworkImage) {
-      return Image.network(
-        imageUrl,
+      return CachedNetworkImage(
+        imageUrl: imageUrl,
         fit: BoxFit.cover,
-        loadingBuilder:
-            (BuildContext context, Widget child, ImageChunkEvent? progress) {
-          if (progress == null) {
-            return child;
-          }
-
-          return Center(
-            child: SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(
-                value: progress.expectedTotalBytes != null
-                    ? progress.cumulativeBytesLoaded /
-                        progress.expectedTotalBytes!
-                    : null,
-              ),
-            ),
-          );
-        },
-        errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
-          return Container(
-            color: Colors.black12,
-            alignment: Alignment.center,
-            child: const Icon(Icons.broken_image_outlined, size: 48),
-          );
-        },
+        placeholder: (context, url) => const Center(
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: theme.colorScheme.surfaceContainerHighest,
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image_outlined, size: 48),
+        ),
       );
     }
 
@@ -638,59 +593,32 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         return PanoramaViewer(
           animSpeed: 0.8,
           sensorControl: SensorControl.orientation,
-          child: isNetworkImage
-              ? Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (BuildContext context, Widget child,
-                      ImageChunkEvent? progress) {
-                    if (progress == null) {
-                      return child;
-                    }
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: progress.expectedTotalBytes != null
-                            ? progress.cumulativeBytesLoaded /
-                                progress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (BuildContext context, Object error,
-                      StackTrace? stackTrace) {
-                    return Container(
-                      color: Colors.black12,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined, size: 48),
-                    );
-                  },
-                )
-              : Image.asset(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (BuildContext context, Object error,
-                      StackTrace? stackTrace) {
-                    return Container(
-                      color: Colors.black12,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined, size: 48),
-                    );
-                  },
-                ),
+          child: Image(
+            image: isNetworkImage
+                ? CachedNetworkImageProvider(imageUrl) as ImageProvider
+                : AssetImage(imageUrl),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: Colors.black,
+              alignment: Alignment.center,
+              child: const Icon(Icons.broken_image_outlined, size: 48, color: Colors.white),
+            ),
+          ),
         );
       }
 
       if (isNetworkImage) {
-        return Image.network(
-          imageUrl,
+        return CachedNetworkImage(
+          imageUrl: imageUrl,
           fit: BoxFit.contain,
-          errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
-            return Container(
-              color: Colors.black12,
-              alignment: Alignment.center,
-              child: const Icon(Icons.broken_image_outlined, size: 48),
-            );
-          },
+          placeholder: (context, url) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+          errorWidget: (context, url, error) => Container(
+            color: Colors.black,
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined, size: 48, color: Colors.white),
+          ),
         );
       }
 
@@ -791,7 +719,10 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     }
 
     if (_weatherData != null) {
-      return WeatherCard(weatherData: _weatherData!);
+      return WeatherCard(
+        weatherData: _weatherData!,
+        syncTime: _weatherService.lastSyncTime,
+      );
     }
 
     if (_weatherError != null) {

@@ -45,6 +45,32 @@ class WeatherData {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'main': {
+        'temp': temperature,
+        'humidity': humidity,
+        'feels_like': feels_like,
+        'pressure': pressure,
+      },
+      'weather': [
+        {
+          'description': description,
+          'icon': iconCode,
+        }
+      ],
+      'wind': {
+        'speed': windSpeed,
+        'deg': windDirection,
+        'gust': windGust,
+      },
+      'visibility': visibility,
+    };
+  }
+
+  // Helper for internal toJson
+  double get feels_like => feelsLike;
+
   String get temperatureFormatted => '${temperature.toStringAsFixed(1)}°C';
   String get feelsLikeFormatted => '${feelsLike.toStringAsFixed(1)}°C';
   String get windSpeedFormatted => '${windSpeed.toStringAsFixed(2)} m/s';

@@ -204,6 +204,31 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                             ),
                           ),
                         ],
+                        if (_surveyService.isUsingCachedRecommendations && _surveyService.recommendationsCacheDate != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.history, size: 14, color: theme.colorScheme.outline),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Sugerencias guardadas — generadas el ${_formatFullDate(_surveyService.recommendationsCacheDate!)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.outline,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         _buildRecommendationCard(recommendations.first),
                       ],
@@ -314,5 +339,9 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
       return 'Hace ${difference.inMinutes} minuto${difference.inMinutes == 1 ? '' : 's'}';
     }
     return 'Hace instantes';
+  }
+
+  String _formatFullDate(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
