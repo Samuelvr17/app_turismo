@@ -73,6 +73,7 @@ supabase/.temp/
 # ArcGIS Maps SDK - symlink a caché local de la máquina de desarrollo
 # La ruta absoluta dentro no funciona en otros equipos
 arcgis_maps_core
+android/app/src/main/jniLibs/
 
 # Python - caché de bytecode del servicio de IA (ai_service/)
 __pycache__/
