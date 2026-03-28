@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/report.dart';
 import '../models/safe_route.dart';
 import '../models/user_preferences.dart';
+import '../models/danger_zone.dart';
 
 class LocalStorageService {
   LocalStorageService._();

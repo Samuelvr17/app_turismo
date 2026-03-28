@@ -208,7 +208,12 @@ class StorageService {
 
     final String userId = _requiredUserId;
 
-    await _supabase.deleteReport(id: id, userId: userId);
+    // Solo intentar eliminar de Supabase si el reporte ya fue sincronizado 
+    // (los reportes locales inician con el prefijo "local_")
+    if (!id.startsWith('local_')) {
+      await _supabase.deleteReport(id: id, userId: userId);
+    }
+    
     await _localStorage.removeCachedReport(id);
   }
 

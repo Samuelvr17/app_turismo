@@ -511,7 +511,7 @@ class _ReportesPageState extends State<ReportesPage> {
         _shareLocation && position != null ? position.longitude : null;
 
     try {
-      await _storageService.saveReport(
+      final Report report = await _storageService.saveReport(
         type: selectedType,
         description: _descriptionController.text.trim(),
         latitude: latitude,
