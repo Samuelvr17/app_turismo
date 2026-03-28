@@ -564,7 +564,7 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
           ),
         ),
         errorWidget: (context, url, error) => Container(
-          color: theme.colorScheme.surfaceContainerHighest,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           alignment: Alignment.center,
           child: const Icon(Icons.broken_image_outlined, size: 48),
         ),
