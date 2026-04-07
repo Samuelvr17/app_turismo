@@ -72,20 +72,29 @@ class AuthService {
     final String normalizedEmail = email.trim().toLowerCase();
     final String passwordHash = _hashPassword(password, normalizedEmail);
 
-    final Map<String, dynamic>? response = await _supabaseClient
-        .from('app_users')
-        .select()
-        .eq('email', normalizedEmail)
-        .eq('password_hash', passwordHash)
-        .maybeSingle();
+    try {
+      final Map<String, dynamic>? response = await _supabaseClient
+          .from('app_users')
+          .select()
+          .eq('email', normalizedEmail)
+          .eq('password_hash', passwordHash)
+          .maybeSingle();
 
-    if (response == null) {
-      throw AuthenticationException('Credenciales inválidas.');
+      if (response == null) {
+        throw AuthenticationException('Credenciales inválidas.');
+      }
+
+      final AppUser user = _mapUser(response);
+      await _persistUser(user);
+      return user;
+    } on PostgrestException catch (error) {
+      throw AuthenticationException(
+        error.message.isNotEmpty ? error.message : 'Error de base de datos al iniciar sesión.',
+      );
+    } catch (e) {
+      if (e is AuthenticationException) rethrow;
+      throw AuthenticationException('Error inesperado al conectar con el servidor.');
     }
-
-    final AppUser user = _mapUser(response);
-    await _persistUser(user);
-    return user;
   }
 
   Future<AppUser> register({

@@ -96,11 +96,13 @@ class ActivitySurveyService {
   // --- Métodos de Caché Local ---
 
   Future<void> _saveSurveyToLocal(String userId, ActivitySurvey survey) async {
+    await Hive.initFlutter();
     final box = await Hive.openBox(_surveyBoxName);
     await box.put(userId, survey.toJson());
   }
 
   Future<ActivitySurvey?> _loadSurveyFromLocal(String userId) async {
+    await Hive.initFlutter();
     final box = await Hive.openBox(_surveyBoxName);
     final data = box.get(userId);
     if (data == null) return null;
@@ -111,6 +113,7 @@ class ActivitySurveyService {
     String userId, 
     List<ActivityRecommendation> recommendations,
   ) async {
+    await Hive.initFlutter();
     final box = await Hive.openBox(_recommendationsBoxName);
     final metaBox = await Hive.openBox(_cacheDateBoxName);
     
@@ -122,6 +125,7 @@ class ActivitySurveyService {
   }
 
   Future<List<ActivityRecommendation>> _loadRecommendationsFromLocal(String userId) async {
+    await Hive.initFlutter();
     final box = await Hive.openBox(_recommendationsBoxName);
     final List<dynamic>? data = box.get(userId);
     if (data == null) return [];
@@ -132,6 +136,7 @@ class ActivitySurveyService {
   }
 
   Future<DateTime?> _getRecommendationsCacheDate(String userId) async {
+    await Hive.initFlutter();
     final metaBox = await Hive.openBox(_cacheDateBoxName);
     final String? dateStr = metaBox.get('${userId}_date');
     if (dateStr == null) return null;
