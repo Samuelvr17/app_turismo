@@ -89,7 +89,9 @@ class WeatherService {
     final dateStr = box.get(_cacheDateKey) as String?;
 
     if (data != null) {
-      _weatherNotifier.value = WeatherData.fromJson(Map<String, dynamic>.from(data));
+      _weatherNotifier.value = WeatherData.fromJson(
+        json.decode(json.encode(data)) as Map<String, dynamic>,
+      );
       if (dateStr != null) {
         _lastSyncTime = DateTime.tryParse(dateStr);
       }
