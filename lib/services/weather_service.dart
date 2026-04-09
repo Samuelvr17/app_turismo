@@ -35,22 +35,18 @@ class WeatherService {
   }) {
     _lastLatitude = latitude;
     _lastLongitude = longitude;
-    
-    // Cancelar timer anterior si existe
     _updateTimer?.cancel();
-    
-    // Obtener datos inmediatamente
-    _updateWeatherData();
-    
-    // Configurar actualización automática cada 12 minutos
+    _initWeatherFlow();
     _updateTimer = Timer.periodic(const Duration(minutes: 12), (_) {
       _updateWeatherData();
     });
+  }
 
-    // Cargar caché inicial si existe y no hay datos actuales
+  Future<void> _initWeatherFlow() async {
     if (_weatherNotifier.value == null) {
-      _loadFromCache();
+      await _loadFromCache();
     }
+    await _updateWeatherData();
   }
   
   void stopAutoUpdate() {

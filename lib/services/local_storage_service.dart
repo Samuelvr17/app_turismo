@@ -357,10 +357,11 @@ class LocalStorageService {
 
       try {
         final Map<String, dynamic> serialized =
-            Map<String, dynamic>.from(raw as Map<dynamic, dynamic>);
+            json.decode(json.encode(raw)) as Map<String, dynamic>;
         zones.add(DangerZone.fromJson(serialized));
       } catch (e) {
         debugPrint('Error al cargar zona de peligro "$key" desde cache: $e');
+        await box.delete(key);
       }
     }
 

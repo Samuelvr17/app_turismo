@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/geo_point.dart';
@@ -17,6 +22,8 @@ class RouteDataService {
   Map<String, Map<String, List<String>>>? _cachedImages;
   DateTime? _lastCacheUpdate;
   static const Duration _cacheExpiration = Duration(hours: 24);
+  static const String _locationsKey = 'route_data_locations_cache';
+  static const String _imagesKey = 'route_data_images_cache';
 
   /// Obtiene las ubicaciones de todas las rutas
   /// 
@@ -44,6 +51,7 @@ class RouteDataService {
       // Actualizar caché
       _cachedLocations = locations;
       _lastCacheUpdate = DateTime.now();
+      unawaited(_persistLocations(locations));
 
       return locations;
     } catch (error) {
@@ -52,8 +60,8 @@ class RouteDataService {
         return _cachedLocations!;
       }
       
-      // Si no hay caché, retornar mapa vacío
-      return {};
+      // Si no hay caché, intentar cargar de disco
+      return await _loadLocationsFromDisk();
     }
   }
 
@@ -117,6 +125,7 @@ class RouteDataService {
       // Actualizar caché
       _cachedImages = images;
       _lastCacheUpdate = DateTime.now();
+      unawaited(_persistImages(images));
 
       return images;
     } catch (error) {
@@ -125,8 +134,8 @@ class RouteDataService {
         return _cachedImages!;
       }
       
-      // Si no hay caché, retornar mapa vacío
-      return {};
+      // Si no hay caché, intentar cargar de disco
+      return await _loadImagesFromDisk();
     }
   }
 
@@ -154,5 +163,58 @@ class RouteDataService {
       getRouteLocations(),
       getAllActivityImages(),
     ]);
+  }
+
+  Future<void> _persistLocations(Map<String, GeoPoint> locations) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = locations.map((k, v) => MapEntry(k, {'lat': v.latitude, 'lng': v.longitude}));
+      await prefs.setString(_locationsKey, json.encode(raw));
+    } catch (e) {
+      debugPrint('Error guardando ubicaciones en disco: $e');
+    }
+  }
+
+  Future<Map<String, GeoPoint>> _loadLocationsFromDisk() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_locationsKey);
+      if (raw == null) return {};
+      final decoded = json.decode(raw) as Map<String, dynamic>;
+      return decoded.map((k, v) {
+        final m = v as Map<String, dynamic>;
+        return MapEntry(k, GeoPoint((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble()));
+      });
+    } catch (e) {
+      debugPrint('Error leyendo ubicaciones de disco: $e');
+      return {};
+    }
+  }
+
+  Future<void> _persistImages(Map<String, Map<String, List<String>>> images) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_imagesKey, json.encode(images));
+    } catch (e) {
+      debugPrint('Error guardando imágenes en disco: $e');
+    }
+  }
+
+  Future<Map<String, Map<String, List<String>>>> _loadImagesFromDisk() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_imagesKey);
+      if (raw == null) return {};
+      final outer = json.decode(raw) as Map<String, dynamic>;
+      return outer.map((route, activities) {
+        final inner = (activities as Map<String, dynamic>).map((act, urls) {
+          return MapEntry(act, (urls as List<dynamic>).map((u) => u.toString()).toList());
+        });
+        return MapEntry(route, inner);
+      });
+    } catch (e) {
+      debugPrint('Error leyendo imágenes de disco: $e');
+      return {};
+    }
   }
 }

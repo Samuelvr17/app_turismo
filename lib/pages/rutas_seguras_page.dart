@@ -320,13 +320,10 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   }
 
   void _startWeatherUpdates() {
-    // Iniciar actualización automática del clima
     _weatherService.startAutoUpdate(
       latitude: widget.location.latitude,
       longitude: widget.location.longitude,
     );
-
-    // Si ya hay datos disponibles, usarlos inmediatamente
     final currentWeather = _weatherService.currentWeather;
     if (currentWeather != null) {
       setState(() {
@@ -335,32 +332,14 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         _weatherError = null;
       });
     } else {
-      // Si no hay datos, cargar manualmente la primera vez
-      _loadWeatherDataManually();
-    }
-  }
-
-  Future<void> _loadWeatherDataManually() async {
-    try {
-      final weatherData = await _weatherService.getWeatherByCoordinates(
-        latitude: widget.location.latitude,
-        longitude: widget.location.longitude,
-      );
-
-      if (mounted) {
-        setState(() {
-          _weatherData = weatherData;
-          _isLoadingWeather = false;
-          _weatherError = weatherData == null ? 'No se pudo obtener información del clima' : null;
-        });
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _isLoadingWeather = false;
-          _weatherError = 'Error al cargar el clima: $error';
-        });
-      }
+      Future.delayed(const Duration(seconds: 10), () {
+        if (mounted && _weatherData == null) {
+          setState(() {
+            _isLoadingWeather = false;
+            _weatherError = 'No se pudo obtener información del clima';
+          });
+        }
+      });
     }
   }
 
