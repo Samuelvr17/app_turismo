@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -71,6 +72,3 @@ class PdfService {
     return File(filePath).exists();
   }
 }
-
-// Para usar debugPrint, necesitamos importar flutter/foundation.dart o usar print
-import 'package:flutter/foundation.dart';
