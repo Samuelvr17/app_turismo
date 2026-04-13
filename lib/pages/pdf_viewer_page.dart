@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
-import 'package:internet_file/internet_file.dart';
+import '../services/pdf_service.dart';
 
 class PdfViewerPage extends StatefulWidget {
   final String pdfUrl;
+  final String id;
   final String title;
 
   const PdfViewerPage({
     super.key,
     required this.pdfUrl,
+    required this.id,
     required this.title,
   });
 
@@ -17,8 +19,9 @@ class PdfViewerPage extends StatefulWidget {
 }
 
 class _PdfViewerPageState extends State<PdfViewerPage> {
-  late PdfControllerPinch _pdfController;
+  PdfControllerPinch? _pdfController;
   bool _isLoading = true;
+  double _downloadProgress = 0;
   String? _errorMessage;
 
   @override
@@ -27,30 +30,51 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     _initializeController();
   }
 
-  void _initializeController() {
+  Future<void> _initializeController() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      _pdfController = PdfControllerPinch(
-        document: PdfDocument.openData(InternetFile.get(widget.pdfUrl)),
+      final String localPath = await PdfService.instance.getPdfFile(
+        widget.pdfUrl,
+        widget.id,
+        onProgress: (received, total) {
+          if (total != -1 && mounted) {
+            setState(() {
+              _downloadProgress = received / total;
+            });
+          }
+        },
       );
+
+      if (!mounted) return;
+
+      _pdfController = PdfControllerPinch(
+        document: PdfDocument.openFile(localPath),
+      );
+      
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+      
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error al cargar el PDF: ${e.toString()}';
+        _errorMessage = e.toString().contains('Exception:') 
+            ? e.toString().replaceFirst('Exception: ', '')
+            : 'Error al cargar el PDF: $e';
       });
     }
   }
 
   @override
   void dispose() {
-    _pdfController.dispose();
+    _pdfController?.dispose();
     super.dispose();
   }
 
@@ -81,43 +105,69 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 60, color: Colors.red),
+            CircularProgressIndicator(
+              value: _downloadProgress > 0 ? _downloadProgress : null,
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+            ),
             const SizedBox(height: 16),
             Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _initializeController,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              _downloadProgress > 0 && _downloadProgress < 1
+                  ? 'Descargando guía... ${(_downloadProgress * 100).toInt()}%'
+                  : 'Cargando guía...',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E3A8A),
               ),
-              child: const Text('Reintentar'),
             ),
           ],
         ),
       );
     }
 
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _initializeController,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_pdfController == null) {
+       return const Center(child: Text('Error al inicializar el visor de PDF'));
+    }
+
     return PdfViewPinch(
-      controller: _pdfController,
+      controller: _pdfController!,
       onDocumentError: (error) {
         setState(() {
           _errorMessage = 'Error al mostrar el PDF: ${error.toString()}';

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/geo_point.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
 import 'pdf_viewer_page.dart';
+import '../services/pdf_service.dart';
 
 import '../data/default_safe_routes.dart';
 import '../models/safe_route.dart';
@@ -196,10 +197,14 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        // Iniciar descarga en segundo plano para agilizar la carga
+                        PdfService.instance.getPdfFile(route.pdfUrl!, route.name);
+
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => PdfViewerPage(
                               pdfUrl: route.pdfUrl!,
+                              id: route.name,
                               title: 'Guía PDF: ${route.name}',
                             ),
                           ),
