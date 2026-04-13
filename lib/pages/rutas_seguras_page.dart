@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/geo_point.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
+import 'pdf_viewer_page.dart';
 
 import '../data/default_safe_routes.dart';
 import '../models/safe_route.dart';
@@ -187,6 +188,33 @@ class _RutasSegurasPageState extends State<RutasSegurasPage> {
                           ),
                         )
                         .toList(growable: false),
+                  ),
+                ],
+                if (route.pdfUrl != null && route.pdfUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => PdfViewerPage(
+                              pdfUrl: route.pdfUrl!,
+                              title: 'Guía PDF: ${route.name}',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: const Text('Ver guía PDF'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: theme.colorScheme.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 8),

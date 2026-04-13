@@ -153,15 +153,7 @@ class SupabaseService implements ReportsRemoteDataSource {
     final response = await client.from('safe_routes').select();
 
     return (response as List<dynamic>)
-        .map((item) => SafeRoute(
-              name: item['name'] as String,
-              duration: item['duration'] as String,
-              difficulty: item['difficulty'] as String,
-              description: item['description'] as String,
-              pointsOfInterest: (item['points_of_interest'] as List<dynamic>)
-                  .map((e) => e.toString())
-                  .toList(),
-            ))
+        .map((item) => SafeRoute.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 

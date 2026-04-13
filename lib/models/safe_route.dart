@@ -8,6 +8,7 @@ class SafeRoute {
     required this.difficulty,
     required this.description,
     required this.pointsOfInterest,
+    this.pdfUrl,
   });
 
   final String name;
@@ -15,6 +16,7 @@ class SafeRoute {
   final String difficulty;
   final String description;
   final List<String> pointsOfInterest;
+  final String? pdfUrl;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -22,7 +24,8 @@ class SafeRoute {
       'duration': duration,
       'difficulty': difficulty,
       'description': description,
-      'pointsOfInterest': pointsOfInterest,
+      'points_of_interest': pointsOfInterest,
+      'pdf_url': pdfUrl,
     };
   }
 
@@ -32,9 +35,10 @@ class SafeRoute {
       duration: json['duration'] as String? ?? '',
       difficulty: json['difficulty'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      pointsOfInterest: (json['pointsOfInterest'] as List<dynamic>? ?? <dynamic>[])
+      pointsOfInterest: (json['points_of_interest'] as List<dynamic>? ?? <dynamic>[])
           .map((dynamic item) => item.toString())
           .toList(growable: false),
+      pdfUrl: json['pdf_url'] as String?,
     );
   }
 }
