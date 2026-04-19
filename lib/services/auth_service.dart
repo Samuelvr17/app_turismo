@@ -1,8 +1,6 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_user.dart';
@@ -24,17 +22,18 @@ class AuthService {
 
   static final AuthService instance = AuthService._();
 
-  static const String _sessionKey = 'cached_auth_session';
-
   final SupabaseClient? _client;
-  SharedPreferences? _preferences;
 
   final ValueNotifier<AppUser?> _currentUserNotifier =
       ValueNotifier<AppUser?>(null);
 
   bool _isInitialized = false;
+  StreamSubscription<AuthState>? _authSubscription;
 
-  SupabaseClient get _supabaseClient => _client ?? SupabaseService.instance.client;
+  SupabaseClient get _supabaseClient =>
+      _client ?? SupabaseService.instance.client;
+
+  GoTrueClient get _auth => _supabaseClient.auth;
 
   ValueListenable<AppUser?> get currentUserListenable => _currentUserNotifier;
 
@@ -42,26 +41,29 @@ class AuthService {
 
   bool get isAuthenticated => currentUser != null;
 
+  // ---------------------------------------------------------------------------
+  // Initialization
+  // ---------------------------------------------------------------------------
+
   Future<void> initialize() async {
     if (_isInitialized) {
       return;
     }
 
-    _preferences = await SharedPreferences.getInstance();
-    final String? raw = _preferences?.getString(_sessionKey);
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        final Map<String, dynamic> decoded = Map<String, dynamic>.from(
-          json.decode(raw) as Map<dynamic, dynamic>,
-        );
-        _currentUserNotifier.value = AppUser.fromJson(decoded);
-      } on FormatException {
-        await _preferences?.remove(_sessionKey);
-      }
-    }
+    // 1. Load current user if there is an active session.
+    _currentUserNotifier.value = _mapSupabaseUser(_auth.currentUser);
+
+    // 2. Subscribe to auth state changes and keep _currentUserNotifier in sync.
+    _authSubscription = _auth.onAuthStateChange.listen((_) {
+    _currentUserNotifier.value = _mapSupabaseUser(_auth.currentUser);
+    });
 
     _isInitialized = true;
   }
+
+  // ---------------------------------------------------------------------------
+  // Login
+  // ---------------------------------------------------------------------------
 
   Future<AppUser> login({
     required String email,
@@ -69,33 +71,35 @@ class AuthService {
   }) async {
     await _ensureInitialized();
 
-    final String normalizedEmail = email.trim().toLowerCase();
-    final String passwordHash = _hashPassword(password, normalizedEmail);
-
     try {
-      final Map<String, dynamic>? response = await _supabaseClient
-          .from('app_users')
-          .select()
-          .eq('email', normalizedEmail)
-          .eq('password_hash', passwordHash)
-          .maybeSingle();
+      final AuthResponse response = await _auth.signInWithPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
 
-      if (response == null) {
+      final User? user = response.user;
+      if (user == null) {
         throw AuthenticationException('Credenciales inválidas.');
       }
 
-      final AppUser user = _mapUser(response);
-      await _persistUser(user);
-      return user;
-    } on PostgrestException catch (error) {
+      return _mapSupabaseUser(user)!;
+    } on AuthException catch (error) {
       throw AuthenticationException(
-        error.message.isNotEmpty ? error.message : 'Error de base de datos al iniciar sesión.',
+        error.message.isNotEmpty
+            ? error.message
+            : 'Credenciales inválidas.',
       );
     } catch (e) {
       if (e is AuthenticationException) rethrow;
-      throw AuthenticationException('Error inesperado al conectar con el servidor.');
+      throw AuthenticationException(
+        'Error inesperado al conectar con el servidor.',
+      );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Register
+  // ---------------------------------------------------------------------------
 
   Future<AppUser> register({
     required String email,
@@ -104,158 +108,142 @@ class AuthService {
   }) async {
     await _ensureInitialized();
 
-    final String normalizedEmail = email.trim().toLowerCase();
-    final String passwordHash = _hashPassword(password, normalizedEmail);
-
     try {
-      final Map<String, dynamic>? response = await _supabaseClient
-          .from('app_users')
-          .insert(<String, dynamic>{
-            'email': normalizedEmail,
-            'password_hash': passwordHash,
-            'full_name': fullName,
-          })
-          .select()
-          .maybeSingle();
+      final AuthResponse response = await _auth.signUp(
+        email: email.trim().toLowerCase(),
+        password: password,
+        data: <String, dynamic>{
+          if (fullName != null) 'full_name': fullName,
+        },
+      );
 
-      if (response == null) {
+      final User? user = response.user;
+      if (user == null) {
         throw AuthenticationException('No se pudo completar el registro.');
       }
 
-      final AppUser user = _mapUser(response);
-      await _persistUser(user);
-      return user;
-    } on PostgrestException catch (error) {
-      if (error.code == '23505') {
-        throw AuthenticationException('El correo ya se encuentra registrado.');
+      return _mapSupabaseUser(user)!;
+    } on AuthException catch (error) {
+      if (error.message.contains('already registered') ||
+          error.message.contains('already been registered')) {
+        throw AuthenticationException(
+          'El correo ya se encuentra registrado.',
+        );
       }
       throw AuthenticationException(error.message);
+    } catch (e) {
+      if (e is AuthenticationException) rethrow;
+      throw AuthenticationException(
+        'Error inesperado al conectar con el servidor.',
+      );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Logout
+  // ---------------------------------------------------------------------------
 
   Future<void> logout() async {
     await _ensureInitialized();
 
-    _currentUserNotifier.value = null;
-    await _preferences?.remove(_sessionKey);
+    await _auth.signOut();
+    // The onAuthStateChange listener will set _currentUserNotifier to null.
   }
+
+  // ---------------------------------------------------------------------------
+  // Update profile
+  // ---------------------------------------------------------------------------
 
   Future<AppUser> updateProfile({
     String? fullName,
     String? email,
-    String? currentPassword,
+    String? currentPassword, // kept for API compatibility, ignored internally
     String? newPassword,
   }) async {
     await _ensureInitialized();
 
-    final AppUser? user = currentUser;
-    if (user == null) {
+    if (currentUser == null) {
       throw AuthenticationException('No hay una sesión activa.');
-    }
-
-    final Map<String, dynamic> updates = <String, dynamic>{};
-
-    if (fullName != null) {
-      final String trimmedFullName = fullName.trim();
-      updates['full_name'] = trimmedFullName.isEmpty ? null : trimmedFullName;
-    }
-
-    String? normalizedEmail;
-    if (email != null) {
-      normalizedEmail = email.trim().toLowerCase();
-      if (normalizedEmail.isEmpty) {
-        throw AuthenticationException('El correo electrónico no puede estar vacío.');
-      }
     }
 
     final String trimmedNewPassword = newPassword?.trim() ?? '';
     if (trimmedNewPassword.isNotEmpty && trimmedNewPassword.length < 6) {
-      throw AuthenticationException('La contraseña debe tener al menos 6 caracteres.');
-    }
-
-    final bool wantsEmailUpdate =
-        normalizedEmail != null && normalizedEmail != user.email;
-    if (wantsEmailUpdate) {
-      updates['email'] = normalizedEmail;
-    }
-
-    final bool wantsPasswordUpdate = trimmedNewPassword.isNotEmpty;
-    final bool requiresPassword = wantsPasswordUpdate || wantsEmailUpdate;
-
-    String? oldHash;
-    if (requiresPassword) {
-      final String trimmedCurrentPassword = currentPassword?.trim() ?? '';
-      if (trimmedCurrentPassword.isEmpty) {
-        throw AuthenticationException('Debes ingresar tu contraseña actual.');
-      }
-
-      oldHash = _hashPassword(trimmedCurrentPassword, user.email);
-
-      final String emailToPersist = wantsEmailUpdate ? normalizedEmail : user.email;
-      final String passwordForHash =
-          wantsPasswordUpdate ? trimmedNewPassword : trimmedCurrentPassword;
-
-      updates['password_hash'] =
-          _hashPassword(passwordForHash, emailToPersist);
-    }
-
-    if (updates.isEmpty) {
-      return user;
+      throw AuthenticationException(
+        'La contraseña debe tener al menos 6 caracteres.',
+      );
     }
 
     try {
-      final query = _supabaseClient
-          .from('app_users')
-          .update(updates)
-          .eq('id', user.id);
-
-      if (oldHash != null) {
-        query.eq('password_hash', oldHash);
+      // --- Update user metadata (full_name) ---
+      if (fullName != null) {
+        final String trimmedFullName = fullName.trim();
+        await _auth.updateUser(
+          UserAttributes(
+            data: <String, dynamic>{
+              'full_name': trimmedFullName.isEmpty ? null : trimmedFullName,
+            },
+          ),
+        );
       }
 
-      final Map<String, dynamic>? response = await query.select().maybeSingle();
-
-      if (response == null) {
-        if (oldHash != null) {
-          throw AuthenticationException('La contraseña actual no es correcta.');
+      // --- Update email ---
+      if (email != null) {
+        final String normalizedEmail = email.trim().toLowerCase();
+        if (normalizedEmail.isEmpty) {
+          throw AuthenticationException(
+            'El correo electrónico no puede estar vacío.',
+          );
         }
+        await _auth.updateUser(
+          UserAttributes(email: normalizedEmail),
+        );
+      }
+
+      // --- Update password ---
+      if (trimmedNewPassword.isNotEmpty) {
+        await _auth.updateUser(
+          UserAttributes(password: trimmedNewPassword),
+        );
+      }
+
+      // Return the freshly updated user.
+      final User? updatedUser = _auth.currentUser;
+      if (updatedUser == null) {
         throw AuthenticationException('No se pudo actualizar el perfil.');
       }
 
-      final AppUser updatedUser = _mapUser(response);
-      await _persistUser(updatedUser);
-      return updatedUser;
-    } on PostgrestException catch (error) {
-      if (error.code == '23505') {
-        throw AuthenticationException('El correo ya se encuentra registrado.');
+      return _mapSupabaseUser(updatedUser)!;
+    } on AuthException catch (error) {
+      if (error.message.contains('already registered') ||
+          error.message.contains('already been registered')) {
+        throw AuthenticationException(
+          'El correo ya se encuentra registrado.',
+        );
       }
       throw AuthenticationException(
         error.message.isEmpty
             ? 'No se pudo actualizar el perfil.'
             : error.message,
       );
+    } catch (e) {
+      if (e is AuthenticationException) rethrow;
+      throw AuthenticationException(
+        'No se pudo actualizar el perfil.',
+      );
     }
   }
 
-  Future<void> _persistUser(AppUser user) async {
-    _currentUserNotifier.value = user;
-    await _preferences?.setString(
-      _sessionKey,
-      json.encode(user.toJson()),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
 
-  AppUser _mapUser(Map<String, dynamic> data) {
+  AppUser? _mapSupabaseUser(User? user) {
+    if (user == null) return null;
     return AppUser(
-      id: data['id'].toString(),
-      email: (data['email'] as String?)?.toLowerCase() ?? '',
-      fullName: data['full_name'] as String?,
+      id: user.id,
+      email: user.email?.toLowerCase() ?? '',
+      fullName: user.userMetadata?['full_name'] as String?,
     );
-  }
-
-  String _hashPassword(String password, String salt) {
-    final List<int> bytes = utf8.encode('$salt::$password');
-    return sha256.convert(bytes).toString();
   }
 
   Future<void> _ensureInitialized() async {

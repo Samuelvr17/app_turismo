@@ -9,9 +9,12 @@ abstract class ReportsRemoteDataSource {
     required String description,
     double? latitude,
     double? longitude,
+    String? veredaName,
   });
 
   Future<List<Report>> getReports({required String userId});
+
+  Future<List<Report>> getPublicReports({String? veredaName});
 
   Future<void> deleteReport({
     required String id,

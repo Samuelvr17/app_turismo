@@ -15,7 +15,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _fullNameController;
   late final TextEditingController _emailController;
-  late final TextEditingController _currentPasswordController;
   late final TextEditingController _newPasswordController;
   late final TextEditingController _confirmPasswordController;
 
@@ -28,7 +27,6 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _fullNameController = TextEditingController();
     _emailController = TextEditingController();
-    _currentPasswordController = TextEditingController();
     _newPasswordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
     _applyUser(_authService.currentUser);
@@ -40,7 +38,6 @@ class _ProfilePageState extends State<ProfilePage> {
     _authService.currentUserListenable.removeListener(_handleUserChanged);
     _fullNameController.dispose();
     _emailController.dispose();
-    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -83,7 +80,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final String rawFullName = _fullNameController.text.trim();
     final String normalizedEmail = _emailController.text.trim().toLowerCase();
-    final String trimmedCurrentPassword = _currentPasswordController.text.trim();
     final String trimmedNewPassword = _newPasswordController.text.trim();
     final bool wantsEmailUpdate =
         normalizedEmail.isNotEmpty &&
@@ -99,13 +95,9 @@ class _ProfilePageState extends State<ProfilePage> {
       await _authService.updateProfile(
         fullName: rawFullName.isEmpty ? null : rawFullName,
         email: wantsEmailUpdate ? normalizedEmail : null,
-        currentPassword: wantsEmailUpdate || wantsPasswordUpdate
-            ? (trimmedCurrentPassword.isEmpty ? null : trimmedCurrentPassword)
-            : null,
         newPassword:
             wantsPasswordUpdate ? trimmedNewPassword : null,
       );
-      _currentPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();
       if (!mounted) {
@@ -213,36 +205,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
                   if (!emailRegex.hasMatch(normalizedEmail)) {
                     return 'Ingresa un correo electrónico válido.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _currentPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Contraseña actual',
-                ),
-                obscureText: true,
-                textInputAction: TextInputAction.next,
-                validator: (String? value) {
-                  final String trimmedCurrentPassword = (value ?? '').trim();
-                  final bool wantsPasswordUpdate =
-                      _newPasswordController.text.trim().isNotEmpty ||
-                          _confirmPasswordController.text.trim().isNotEmpty;
-                  final bool wantsEmailUpdate =
-                      _emailController.text.trim().toLowerCase() !=
-                          user.email.toLowerCase();
-                  if (wantsPasswordUpdate || wantsEmailUpdate) {
-                    if (trimmedCurrentPassword.isEmpty) {
-                      return 'Ingresa tu contraseña actual.';
-                    }
-                    if (trimmedCurrentPassword.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres.';
-                    }
-                  } else if (trimmedCurrentPassword.isNotEmpty &&
-                      trimmedCurrentPassword.length < 6) {
-                    return 'La contraseña debe tener al menos 6 caracteres.';
                   }
                   return null;
                 },

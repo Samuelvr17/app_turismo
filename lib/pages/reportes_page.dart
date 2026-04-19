@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/report.dart';
+import '../models/safe_route.dart';
 import '../models/user_preferences.dart';
+import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../services/storage_service.dart';
 
@@ -25,9 +27,19 @@ class _ReportesPageState extends State<ReportesPage> {
   late final VoidCallback _locationListener;
 
   ReportType? _selectedType;
+  String? _selectedVereda;
   bool _shareLocation = true;
   bool _isSubmitting = false;
   LocationState _locationState = const LocationState();
+
+  // Vereda dropdown options
+  List<String> _veredaNames = <String>[];
+  bool _loadingVeredas = true;
+
+  // Public reports
+  List<Report> _publicReports = <Report>[];
+  bool _loadingPublicReports = true;
+  String? _publicFilter; // null means "Todas"
 
   @override
   void initState() {
@@ -69,6 +81,8 @@ class _ReportesPageState extends State<ReportesPage> {
     _storageService.preferencesListenable.addListener(_preferencesListener);
     _locationService.stateListenable.addListener(_locationListener);
     unawaited(_locationService.initialize());
+    unawaited(_loadVeredas());
+    unawaited(_loadPublicReports());
   }
 
   @override
@@ -77,6 +91,52 @@ class _ReportesPageState extends State<ReportesPage> {
     _locationService.stateListenable.removeListener(_locationListener);
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadVeredas() async {
+    try {
+      final List<SafeRoute> routes = await _storageService.loadSafeRoutes();
+      if (mounted) {
+        setState(() {
+          _veredaNames = routes.map((SafeRoute r) => r.name).toList();
+          _loadingVeredas = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al cargar veredas: $e');
+      if (mounted) {
+        setState(() {
+          _loadingVeredas = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadPublicReports() async {
+    if (mounted) {
+      setState(() {
+        _loadingPublicReports = true;
+      });
+    }
+
+    try {
+      final List<Report> reports = await _storageService.getPublicReports(
+        veredaName: _publicFilter,
+      );
+      if (mounted) {
+        setState(() {
+          _publicReports = reports;
+          _loadingPublicReports = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al cargar reportes públicos: $e');
+      if (mounted) {
+        setState(() {
+          _loadingPublicReports = false;
+        });
+      }
+    }
   }
 
   @override
@@ -94,6 +154,8 @@ class _ReportesPageState extends State<ReportesPage> {
               return _buildReportsSection(context, reports);
             },
           ),
+          const SizedBox(height: 24),
+          _buildPublicReportsSection(context),
         ],
       ),
     );
@@ -165,6 +227,8 @@ class _ReportesPageState extends State<ReportesPage> {
               }
             },
           ),
+          const SizedBox(height: 16),
+          _buildVeredaDropdown(),
           const SizedBox(height: 16),
           TextFormField(
             controller: _descriptionController,
@@ -240,6 +304,55 @@ class _ReportesPageState extends State<ReportesPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVeredaDropdown() {
+    if (_loadingVeredas) {
+      return const InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Vereda',
+          border: OutlineInputBorder(),
+        ),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Cargando veredas...'),
+          ],
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _selectedVereda,
+      decoration: const InputDecoration(
+        labelText: 'Vereda',
+        border: OutlineInputBorder(),
+      ),
+      validator: (String? value) {
+        if (value == null || value.isEmpty) {
+          return 'Selecciona la vereda del reporte';
+        }
+        return null;
+      },
+      items: _veredaNames
+          .map(
+            (String name) => DropdownMenuItem<String>(
+              value: name,
+              child: Text(name),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (String? value) {
+        setState(() {
+          _selectedVereda = value;
+        });
+      },
     );
   }
 
@@ -325,7 +438,7 @@ class _ReportesPageState extends State<ReportesPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Reportes',
+            'Mis reportes',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -364,26 +477,111 @@ class _ReportesPageState extends State<ReportesPage> {
           const SizedBox(height: 8),
           ...pendingReports.map((Report report) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _buildReportCard(context, report),
+                child: _buildReportCard(context, report, showDelete: true),
               )),
           const Divider(height: 32),
         ],
         if (syncedReports.isNotEmpty) ...<Widget>[
           Text(
-            'Reportes sincronizados',
+            'Mis reportes sincronizados',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
           ...syncedReports.map((Report report) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _buildReportCard(context, report),
+                child: _buildReportCard(context, report, showDelete: true),
               )),
         ],
       ],
     );
   }
 
-  Widget _buildReportCard(BuildContext context, Report report) {
+  // -----------------------------------------------------------------------
+  // Public reports section
+  // -----------------------------------------------------------------------
+
+  Widget _buildPublicReportsSection(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Divider(height: 32),
+        Text(
+          'Reportes públicos',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildPublicFilter(context),
+        const SizedBox(height: 12),
+        if (_loadingPublicReports)
+          const Center(child: CircularProgressIndicator())
+        else if (_publicReports.isEmpty)
+          Text(
+            'No hay reportes públicos para mostrar.',
+            style: theme.textTheme.bodyMedium,
+          )
+        else
+          ..._publicReports.map((Report report) {
+            final String? currentUserId =
+                AuthService.instance.currentUser?.id;
+            final bool isOwner =
+                currentUserId != null && report.userId == currentUserId;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildReportCard(
+                context,
+                report,
+                showDelete: isOwner,
+                showVereda: true,
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildPublicFilter(BuildContext context) {
+    final List<String> filterOptions = <String>[
+      'Todas',
+      ..._veredaNames,
+    ];
+
+    return DropdownButtonFormField<String>(
+      value: _publicFilter ?? 'Todas',
+      decoration: const InputDecoration(
+        labelText: 'Filtrar por vereda',
+        border: OutlineInputBorder(),
+      ),
+      items: filterOptions
+          .map(
+            (String name) => DropdownMenuItem<String>(
+              value: name,
+              child: Text(name),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (String? value) {
+        setState(() {
+          _publicFilter = (value == null || value == 'Todas') ? null : value;
+        });
+        unawaited(_loadPublicReports());
+      },
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Report card (shared between my reports and public reports)
+  // -----------------------------------------------------------------------
+
+  Widget _buildReportCard(
+    BuildContext context,
+    Report report, {
+    bool showDelete = false,
+    bool showVereda = false,
+  }) {
     final ThemeData theme = Theme.of(context);
     final ReportType type = ReportType.fromId(report.typeId);
     final String formattedDate = _formatDate(report.createdAt);
@@ -409,10 +607,12 @@ class _ReportesPageState extends State<ReportesPage> {
                     children: <Widget>[
                       Row(
                         children: [
-                          Text(
-                            type.label,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                          Expanded(
+                            child: Text(
+                              type.label,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (!report.isSynced) ...[
@@ -442,13 +642,34 @@ class _ReportesPageState extends State<ReportesPage> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: report.isSynced ? 'Eliminar reporte' : 'Descartar pendiente',
-                  onPressed: () => unawaited(_removeReport(report)),
-                ),
+                if (showDelete)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: report.isSynced ? 'Eliminar reporte' : 'Descartar pendiente',
+                    onPressed: () => unawaited(_removeReport(report)),
+                  ),
               ],
             ),
+            if (showVereda) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.map_outlined,
+                    size: 16,
+                    color: theme.colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    report.veredaName ?? 'Sin vereda',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Text(
               report.description,
@@ -516,6 +737,7 @@ class _ReportesPageState extends State<ReportesPage> {
         description: _descriptionController.text.trim(),
         latitude: latitude,
         longitude: longitude,
+        veredaName: _selectedVereda,
       );
 
       final UserPreferences updatedPreferences =
@@ -530,6 +752,10 @@ class _ReportesPageState extends State<ReportesPage> {
       }
 
       _descriptionController.clear();
+      setState(() {
+        _selectedVereda = null;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(report.isSynced
@@ -538,6 +764,9 @@ class _ReportesPageState extends State<ReportesPage> {
           backgroundColor: report.isSynced ? null : Colors.orange.shade800,
         ),
       );
+
+      // Refresh public reports after creating a new one
+      unawaited(_loadPublicReports());
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -564,6 +793,8 @@ class _ReportesPageState extends State<ReportesPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Reporte eliminado de la nube.')),
         );
+        // Refresh public reports after deletion
+        unawaited(_loadPublicReports());
       }
     } catch (error) {
       if (mounted) {

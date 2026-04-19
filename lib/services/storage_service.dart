@@ -128,6 +128,7 @@ class StorageService {
     required String description,
     double? latitude,
     double? longitude,
+    String? veredaName,
   }) async {
     await _ensureUserInitialized();
 
@@ -142,6 +143,7 @@ class StorageService {
         description: description,
         latitude: latitude,
         longitude: longitude,
+        veredaName: veredaName,
       );
       // report returns isSynced: true by default from Supabase
     } catch (e) {
@@ -155,11 +157,17 @@ class StorageService {
         latitude: latitude,
         longitude: longitude,
         isSynced: false,
+        veredaName: veredaName,
+        userId: userId,
       );
     }
 
     await _localStorage.saveReport(report: report!);
     return report;
+  }
+
+  Future<List<Report>> getPublicReports({String? veredaName}) async {
+    return _supabase.getPublicReports(veredaName: veredaName);
   }
 
   Future<void> syncPendingReports() async {
@@ -188,6 +196,7 @@ class StorageService {
             description: pending.description,
             latitude: pending.latitude,
             longitude: pending.longitude,
+            veredaName: pending.veredaName,
           );
 
           // Eliminar el local temporal y guardar el sincronizado

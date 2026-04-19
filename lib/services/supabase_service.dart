@@ -53,6 +53,7 @@ class SupabaseService implements ReportsRemoteDataSource {
     required String description,
     double? latitude,
     double? longitude,
+    String? veredaName,
   }) async {
     final Map<String, dynamic> data = {
       'type_id': type.id,
@@ -60,6 +61,7 @@ class SupabaseService implements ReportsRemoteDataSource {
       'latitude': latitude,
       'longitude': longitude,
       'user_id': userId,
+      'vereda_name': veredaName,
     };
 
     final response = await client
@@ -79,6 +81,8 @@ class SupabaseService implements ReportsRemoteDataSource {
       createdAt: DateTime.parse(response['created_at'] as String),
       latitude: (response['latitude'] as num?)?.toDouble(),
       longitude: (response['longitude'] as num?)?.toDouble(),
+      veredaName: response['vereda_name'] as String?,
+      userId: response['user_id'] as String?,
     );
   }
 
@@ -98,6 +102,32 @@ class SupabaseService implements ReportsRemoteDataSource {
               createdAt: DateTime.parse(item['created_at'] as String),
               latitude: (item['latitude'] as num?)?.toDouble(),
               longitude: (item['longitude'] as num?)?.toDouble(),
+              veredaName: item['vereda_name'] as String?,
+              userId: item['user_id'] as String?,
+            ))
+        .toList();
+  }
+
+  @override
+  Future<List<Report>> getPublicReports({String? veredaName}) async {
+    var query = client.from('reports').select();
+
+    if (veredaName != null && veredaName != 'Todas') {
+      query = query.eq('vereda_name', veredaName);
+    }
+
+    final response = await query.order('created_at', ascending: false);
+
+    return (response as List<dynamic>)
+        .map((item) => Report(
+              id: item['id'].toString(),
+              typeId: item['type_id'] as String,
+              description: item['description'] as String,
+              createdAt: DateTime.parse(item['created_at'] as String),
+              latitude: (item['latitude'] as num?)?.toDouble(),
+              longitude: (item['longitude'] as num?)?.toDouble(),
+              veredaName: item['vereda_name'] as String?,
+              userId: item['user_id'] as String?,
             ))
         .toList();
   }

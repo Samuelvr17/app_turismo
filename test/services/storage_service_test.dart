@@ -51,6 +51,7 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
     required String description,
     double? latitude,
     double? longitude,
+    String? veredaName,
   }) async {
     final Report report = Report(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -59,9 +60,21 @@ class _FakeSupabaseService implements ReportsRemoteDataSource {
       createdAt: DateTime.now(),
       latitude: latitude,
       longitude: longitude,
+      veredaName: veredaName,
+      userId: userId,
     );
     _reports.insert(0, report);
     return report;
+  }
+
+  @override
+  Future<List<Report>> getPublicReports({String? veredaName}) async {
+    if (veredaName == null || veredaName == 'Todas') {
+      return List<Report>.from(_reports);
+    }
+    return _reports
+        .where((Report r) => r.veredaName == veredaName)
+        .toList();
   }
 
   @override

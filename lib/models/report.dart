@@ -10,6 +10,8 @@ class Report {
     this.latitude,
     this.longitude,
     this.isSynced = true,
+    this.veredaName,
+    this.userId,
   });
 
   final String id;
@@ -19,6 +21,8 @@ class Report {
   final double? latitude;
   final double? longitude;
   final bool isSynced;
+  final String? veredaName;
+  final String? userId;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -29,6 +33,8 @@ class Report {
       'latitude': latitude,
       'longitude': longitude,
       'isSynced': isSynced,
+      'veredaName': veredaName,
+      'userId': userId,
     };
   }
 
@@ -42,6 +48,8 @@ class Report {
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       isSynced: json['isSynced'] as bool? ?? true,
+      veredaName: json['veredaName'] as String?,
+      userId: json['userId'] as String?,
     );
   }
 
@@ -53,8 +61,12 @@ class Report {
     double? latitude,
     double? longitude,
     bool? isSynced,
+    String? veredaName,
+    String? userId,
     bool resetLatitude = false,
     bool resetLongitude = false,
+    bool resetVeredaName = false,
+    bool resetUserId = false,
   }) {
     return Report(
       id: id ?? this.id,
@@ -64,6 +76,8 @@ class Report {
       latitude: resetLatitude ? null : latitude ?? this.latitude,
       longitude: resetLongitude ? null : longitude ?? this.longitude,
       isSynced: isSynced ?? this.isSynced,
+      veredaName: resetVeredaName ? null : veredaName ?? this.veredaName,
+      userId: resetUserId ? null : userId ?? this.userId,
     );
   }
 }
