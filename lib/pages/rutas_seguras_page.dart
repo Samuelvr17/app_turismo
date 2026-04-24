@@ -450,6 +450,8 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
     // Lista de patrones que indican imágenes panorámicas
     return path.contains('parapente') ||
         path.contains('panorama') ||
+        path.contains('panoramica') ||
+        path.contains('panorámica') ||
         path.contains('360') ||
         path.contains('bryan-goff') || // La imagen específica de parapente
         path.contains('arg1.jpg') ||    // Imágenes panorámicas de Vereda Argentina
@@ -458,6 +460,8 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
         parsed.queryParameters.containsKey('panorama') ||
         parsed.queryParameters['type'] == 'panorama' ||
         normalized.contains('panorama') ||
+        normalized.contains('panoramica') ||
+        normalized.contains('panorámica') ||
         normalized.contains('360');
   }
 
@@ -772,6 +776,8 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final String normalizedName = widget.activityName.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    final bool isCascada3Colores = normalizedName == 'cascada 3 colores';
 
     return Scaffold(
       appBar: AppBar(
@@ -805,42 +811,49 @@ class _SafeRouteActivityDetailPageState extends State<SafeRouteActivityDetailPag
                 _buildImagePlaceholder(theme),
                 const SizedBox(height: 24),
               ],
-              _buildWeatherSection(theme),
-              const SizedBox(height: 24),
-              Text(
-                'Consideraciones de seguridad',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              ..._safetyConsiderations.map(
-                (String item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text('• '),
-                      Expanded(
-                        child: Text(
-                          item,
-                          style: theme.textTheme.bodyMedium,
+              if (isCascada3Colores)
+                Text(
+                  'Cascada natural ubicada en la vereda Argentina, accesible mediante una caminata moderada entre senderos y tramos rocosos. Destaca por sus formaciones de roca con diferentes tonalidades y una caída de agua que forma un pozo natural, ideal para el descanso y la conexión con la naturaleza.',
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                )
+              else ...<Widget>[
+                _buildWeatherSection(theme),
+                const SizedBox(height: 24),
+                Text(
+                  'Consideraciones de seguridad',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                ..._safetyConsiderations.map(
+                  (String item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text('• '),
+                        Expanded(
+                          child: Text(
+                            item,
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Consejo rápido',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Recuerda avisar a tus acompañantes o contactos de confianza cuando '
-                'inicies y finalices la actividad. Lleva siempre un botiquín básico y '
-                'mantente hidratado.',
-                style: theme.textTheme.bodyMedium,
-              ),
+                const SizedBox(height: 24),
+                Text(
+                  'Consejo rápido',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Recuerda avisar a tus acompañantes o contactos de confianza cuando '
+                  'inicies y finalices la actividad. Lleva siempre un botiquín básico y '
+                  'mantente hidratado.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
             ],
           ),
         ),

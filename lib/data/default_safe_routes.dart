@@ -25,6 +25,7 @@ const List<SafeRoute> defaultSafeRoutes = <SafeRoute>[
     pointsOfInterest: <String>[
       'Ciclismo',
       'Caminata',
+      'Cascada 3 Colores',
     ],
   ),
 ];
