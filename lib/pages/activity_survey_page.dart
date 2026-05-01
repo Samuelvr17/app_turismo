@@ -156,9 +156,10 @@ class _ActivitySurveyPageState extends State<ActivitySurveyPage> {
       });
     } catch (error) {
       if (!mounted) return;
+      debugPrint('[ActivitySurveyPage] Fallo inesperado: $error');
       setState(() {
         _errorMessage =
-            'No pudimos guardar tus respuestas. Intenta nuevamente en unos minutos.';
+            'No pudimos contactar con el sistema para guardar y generar recomendaciones. Verifica tu red e intenta en breve.';
       });
     } finally {
       if (mounted) {

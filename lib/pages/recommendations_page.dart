@@ -112,7 +112,31 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
             List<ActivityRecommendation> recommendations,
             _,
           ) {
-            if (recommendations.isEmpty && !_isRefreshing) {
+            if (recommendations.isEmpty) {
+              if (_isRefreshing) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const SizedBox(
+                          height: 48,
+                          width: 48,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Generando recomendaciones personalizadas...',
+                          style: theme.textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -134,14 +158,8 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                       ),
                       const SizedBox(height: 16),
                       FilledButton.icon(
-                        onPressed: _isRefreshing ? null : _refreshRecommendations,
-                        icon: _isRefreshing
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.refresh),
+                        onPressed: _refreshRecommendations,
+                        icon: const Icon(Icons.refresh),
                         label: const Text('Obtener recomendaciones'),
                       ),
                       const SizedBox(height: 8),
@@ -230,7 +248,7 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                           ),
                         ],
                         const SizedBox(height: 16),
-                        _buildRecommendationCard(recommendations.first),
+                        if (recommendations.isNotEmpty) _buildRecommendationCard(recommendations.first),
                       ],
                     );
                   }

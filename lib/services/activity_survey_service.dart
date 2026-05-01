@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -200,14 +202,19 @@ class ActivitySurveyService {
     final ActivitySurvey surveyToSave =
         survey.copyWith(completedAt: completedAt);
 
-    await _supabaseClient.from('user_activity_surveys').upsert(
-      <String, dynamic>{
-        'user_id': userId,
-        'responses': surveyToSave.toJson(),
-        'completed_at': completedAt.toIso8601String(),
-      },
-      onConflict: 'user_id',
-    );
+    try {
+      debugPrint('[ActivitySurveyService] Guardando respuestas de encuesta en Supabase...');
+      await _supabaseClient.from('user_activity_surveys').upsert(
+        <String, dynamic>{
+          'user_id': userId,
+          'responses': surveyToSave.toJson(),
+          'completed_at': completedAt.toIso8601String(),
+        },
+        onConflict: 'user_id',
+      ).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[ActivitySurveyService] Advertencia: Falló guardado de encuesta en Supabase: $e');
+    }
 
     _surveyNotifier.value = surveyToSave;
     await _saveSurveyToLocal(userId, surveyToSave);
@@ -215,6 +222,7 @@ class ActivitySurveyService {
     final List<AvailableActivity> availableActivities =
         await _loadAvailableActivities();
 
+    debugPrint('[ActivitySurveyService] Solicitando recomendaciones al AI Service...');
     final List<ActivityRecommendation> recommendations =
         await _apiService.generateRecommendations(
       userId: userId,
@@ -222,7 +230,15 @@ class ActivitySurveyService {
       availableActivities: availableActivities,
     );
 
-    await _persistRecommendations(userId, recommendations);
+    debugPrint('[ActivitySurveyService] Recomendaciones recibidas exitosamente: ${recommendations.length}');
+    try {
+      debugPrint('[ActivitySurveyService] Guardando recomendaciones en Supabase...');
+      await _persistRecommendations(userId, recommendations).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[ActivitySurveyService] Advertencia: Falló guardado de recomendaciones en Supabase: $e');
+    }
+
+    debugPrint('[ActivitySurveyService] Guardando recomendaciones en caché local...');
     await _saveRecommendationsToLocal(userId, recommendations);
 
     _recommendationsNotifier.value =
@@ -241,13 +257,23 @@ class ActivitySurveyService {
     final List<AvailableActivity> availableActivities =
         await _loadAvailableActivities();
 
+    debugPrint('[ActivitySurveyService] Solicitando nuevas recomendaciones al AI Service...');
     final List<ActivityRecommendation> recommendations =
         await _apiService.generateRecommendations(
       userId: userId,
       survey: survey,
       availableActivities: availableActivities,
     );
-    await _persistRecommendations(userId, recommendations);
+    
+    debugPrint('[ActivitySurveyService] Recomendaciones generadas exitosamente: ${recommendations.length}');
+    try {
+      debugPrint('[ActivitySurveyService] Guardando nuevas recomendaciones en Supabase...');
+      await _persistRecommendations(userId, recommendations).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[ActivitySurveyService] Advertencia: Falló guardado de nuevas recomendaciones en Supabase: $e');
+    }
+
+    debugPrint('[ActivitySurveyService] Guardando nuevas recomendaciones en caché local...');
     await _saveRecommendationsToLocal(userId, recommendations);
 
     _recommendationsNotifier.value =
@@ -303,9 +329,11 @@ class ActivitySurveyService {
     List<SafeRoute> routes = <SafeRoute>[];
 
     try {
+      debugPrint('[ActivitySurveyService] Cargando actividades disponibles (safe_routes) desde Supabase...');
       final List<dynamic> response = await _supabaseClient
           .from('safe_routes')
-          .select('name, description, difficulty, points_of_interest');
+          .select('name, description, difficulty, points_of_interest')
+          .timeout(const Duration(seconds: 15));
 
       routes = response
           .map((dynamic item) {
@@ -325,11 +353,14 @@ class ActivitySurveyService {
           })
           .where((SafeRoute route) => route.pointsOfInterest.isNotEmpty)
           .toList();
+
+      debugPrint('[ActivitySurveyService] Rutas cargadas desde Supabase exitosamente: ${routes.length}');
     } catch (error) {
-      debugPrint('Error al cargar actividades disponibles: $error');
+      debugPrint('[ActivitySurveyService] Error al cargar actividades disponibles de Supabase: $error');
     }
 
     if (routes.isEmpty) {
+      debugPrint('[ActivitySurveyService] Utilizando rutas locales por defecto (defaultSafeRoutes).');
       routes = defaultSafeRoutes;
     }
 

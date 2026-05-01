@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -27,7 +28,7 @@ class RecommendationApiService {
     final String? baseUrl = dotenv.env['RECOMMENDATION_API_URL'];
     if (baseUrl == null || baseUrl.isEmpty) {
       throw RecommendationApiException(
-        'RECOMMENDATION_API_URL no está configurada en el archivo .env',
+        'No se encontró la url del servidor AI (RECOMMENDATION_API_URL). Verifica el archivo .env y vuelve a compilar.',
       );
     }
 
@@ -47,21 +48,25 @@ class RecommendationApiService {
           availableActivities.map((AvailableActivity item) => item.toJson()).toList(),
     };
 
-    final http.Response response = await _httpClient.post(
-      endpoint,
-      headers: const <String, String>{
-        'Content-Type': 'application/json',
-      },
-      body: json.encode(payload),
-    );
-
-    if (response.statusCode >= 400) {
-      throw RecommendationApiException(
-        'Error al solicitar recomendaciones (${response.statusCode})',
-      );
-    }
+    debugPrint('[RecommendationApiService] Solicitando recomendaciones a: $endpoint');
 
     try {
+      final http.Response response = await _httpClient.post(
+        endpoint,
+        headers: const <String, String>{
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(payload),
+      ).timeout(const Duration(seconds: 20));
+
+      debugPrint('[RecommendationApiService] Respuesta recibida HTTP ${response.statusCode}');
+
+      if (response.statusCode >= 400) {
+        throw RecommendationApiException(
+          'Error en el servidor al generar recomendaciones (Código: ${response.statusCode}).',
+        );
+      }
+
       final Map<String, dynamic> decoded =
           json.decode(response.body) as Map<String, dynamic>;
       final List<dynamic> rawRecommendations =
@@ -72,11 +77,31 @@ class RecommendationApiService {
                 Map<String, dynamic>.from(item as Map<dynamic, dynamic>),
               ))
           .toList();
-    } catch (error, stackTrace) {
-      debugPrint('Error al decodificar recomendaciones: $error');
-      debugPrint('$stackTrace');
+    } on TimeoutException catch (error) {
+      debugPrint('[RecommendationApiService] Timeout al conectar con AI service: $error');
       throw RecommendationApiException(
-        'No fue posible interpretar la respuesta del servicio de recomendaciones',
+        'El servicio AI tardó demasiado en responder. Por favor, intenta de nuevo (Timeout).',
+      );
+    } on http.ClientException catch (error) {
+      debugPrint('[RecommendationApiService] Error de red ClientException: $error');
+      throw RecommendationApiException(
+        'Hubo un problema de conexión al servidor AI. Verifica tu red o la URL configurada.',
+      );
+    } on FormatException catch (error) {
+      debugPrint('[RecommendationApiService] Respuesta JSON inválida: $error');
+      throw RecommendationApiException(
+        'El formato de la respuesta del servidor es inválido.',
+      );
+    } catch (error) {
+      debugPrint('[RecommendationApiService] Error inesperado en API de recomendaciones: $error');
+      if (error.toString().contains('SocketException')) {
+        throw RecommendationApiException(
+          'No se pudo conectar al servidor de recomendaciones. Verifica que tu dispositivo alcance la red (SocketException).',
+        );
+      }
+      if (error is RecommendationApiException) rethrow;
+      throw RecommendationApiException(
+        'Ocurrió un error general inesperado al pedir recomendaciones.',
       );
     }
   }
