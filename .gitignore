@@ -78,3 +78,7 @@ android/app/src/main/jniLibs/
 # Python - caché de bytecode del servicio de IA (ai_service/)
 __pycache__/
 *.pyo
+
+android/key.properties
+*.jks
+*.keystore
