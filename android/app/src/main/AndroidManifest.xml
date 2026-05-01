@@ -20,7 +20,7 @@
         android:name="android.hardware.sensor.gyroscope"
         android:required="false" />
     <application
-        android:label="app_turismo"
+        android:label="RutAR"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
