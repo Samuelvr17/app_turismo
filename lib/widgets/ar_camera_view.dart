@@ -1007,7 +1007,7 @@ class _FocusedPointOverlay extends StatelessWidget {
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
           Text(
-            'Nivel: ${pointContext.zone.level.name.toUpperCase()} | Radio de detección ${pointContext.point.radius.toStringAsFixed(0)} m',
+            'Nivel: ${(pointContext.point.level ?? pointContext.zone.level).name.toUpperCase()} | Radio de detección ${pointContext.point.radius.toStringAsFixed(0)} m',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
           const SizedBox(height: 10),
