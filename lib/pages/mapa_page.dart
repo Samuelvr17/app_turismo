@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:arcgis_maps/arcgis_maps.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -365,6 +366,69 @@ class _MapaPageState extends State<MapaPage> {
     );
   }
 
+  // Método para probar la vista AR con una ubicación simulada (solo debug)
+  Future<void> _openArTestView() async {
+    // Coordenadas simuladas para Vereda La Argentina
+    const double testLat = 4.202102;
+    const double testLon = -73.640033;
+
+    final Position testPosition = Position(
+      latitude: testLat,
+      longitude: testLon,
+      timestamp: DateTime.now(),
+      accuracy: 0,
+      altitude: 0,
+      altitudeAccuracy: 0,
+      heading: 0,
+      headingAccuracy: 0,
+      speed: 0,
+      speedAccuracy: 0,
+    );
+
+    final List<DangerZone> nearbyZones = _zoneDetectionService.collectNearbyZones(
+      position: testPosition,
+      zones: _dangerZones,
+      radiusInMeters: 1500,
+    );
+
+    if (nearbyZones.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontraron zonas de prueba para Vereda Argentina.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final PermissionStatus cameraStatus = await Permission.camera.request();
+    if (!cameraStatus.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Se requiere permiso de cámara para la vista AR.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ArCameraView(
+          dangerZones: nearbyZones,
+          initialPosition: testPosition,
+          useFixedTestPosition: true,
+        ),
+      ),
+    );
+  }
+
   Future<void> _showDangerDialog(DangerZone zone) async {
     if (_isShowingDialog || !mounted) {
       return;
@@ -466,6 +530,7 @@ class _MapaPageState extends State<MapaPage> {
     }
 
     final bool canOpenAr = !_isLoading && _errorMessage == null && !_zonesLoading;
+final bool canOpenArTest = !_zonesLoading && _zonesError == null;
 
     return Stack(
       children: [
@@ -533,6 +598,21 @@ class _MapaPageState extends State<MapaPage> {
               onPressed: _openArDangerView,
               icon: const Icon(Icons.view_in_ar),
               label: const Text('Ver en AR'),
+            ),
+          ),
+        if (kDebugMode && canOpenArTest)
+          Positioned(
+            bottom: 80,
+            right: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'test_ar_button',
+              onPressed: _openArTestView,
+              backgroundColor: Colors.orange.shade800,
+              icon: const Icon(Icons.bug_report, color: Colors.white),
+              label: const Text(
+                'Probar AR Argentina',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ),
       ],

@@ -18,10 +18,12 @@ class ArCameraView extends StatefulWidget {
     super.key,
     required this.dangerZones,
     required this.initialPosition,
+    this.useFixedTestPosition = false,
   });
 
   final List<DangerZone> dangerZones;
   final Position initialPosition;
+  final bool useFixedTestPosition;
 
   @override
   State<ArCameraView> createState() => _ArCameraViewState();
@@ -29,7 +31,7 @@ class ArCameraView extends StatefulWidget {
 
 class _ArCameraViewState extends State<ArCameraView> {
   final ArCalculationService _arService = const ArCalculationService();
-  static const double _overlayMinDistanceMeters = 200;
+  static const double _overlayMinDistanceMeters = 450;
 
   CameraController? _cameraController;
   StreamSubscription<Position>? _positionSubscription;
@@ -110,6 +112,9 @@ class _ArCameraViewState extends State<ArCameraView> {
   }
 
   void _startPositionUpdates() {
+    if (widget.useFixedTestPosition) {
+      return;
+    }
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.best,
