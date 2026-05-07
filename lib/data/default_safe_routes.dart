@@ -14,6 +14,7 @@ const List<SafeRoute> defaultSafeRoutes = <SafeRoute>[
       'Parapente',
       'Caminata ecológica',
     ],
+    pdfUrl: 'https://mxkdkfihshfbsvazmftg.supabase.co/storage/v1/object/public/route-pdfs/VeredaBuenaVista/Ficha-caracterizacion-vereda-buenavista.pdf',
   ),
   SafeRoute(
     name: 'Vereda Argentina',
