@@ -176,13 +176,41 @@ class _ArCameraViewState extends State<ArCameraView> {
     final List<_PointContext> contexts = <_PointContext>[];
 
     for (final DangerZone zone in widget.dangerZones) {
+      // 1. Add the zone itself as a point (to show the main zone marker)
+      final double zoneDistance =
+          _arService.calculateDistance(userGeoPoint, zone.center);
+      if (zoneDistance <= radiusInMeters) {
+        final double zoneBearing =
+            _arService.calculateBearing(userGeoPoint, zone.center);
+        contexts.add(
+          _PointContext(
+            zone: zone,
+            point: DangerZonePoint(
+              id: "zone_${zone.id}",
+              dangerZoneId: zone.id,
+              title: zone.title,
+              description: zone.description,
+              precautions: zone.precautions,
+              recommendations: zone.securityRecommendations,
+              location: zone.center,
+              radius: zone.radius,
+            ),
+            distance: zoneDistance,
+            relativeBearing: _relativeBearing(zoneBearing),
+          ),
+        );
+      }
+
+      // 2. Add all sub-points
       for (final DangerZonePoint point in zone.points) {
-        final double distance = _arService.calculateDistance(userGeoPoint, point.location);
+        final double distance =
+            _arService.calculateDistance(userGeoPoint, point.location);
         if (distance > radiusInMeters) {
           continue;
         }
 
-        final double bearing = _arService.calculateBearing(userGeoPoint, point.location);
+        final double bearing =
+            _arService.calculateBearing(userGeoPoint, point.location);
         contexts.add(
           _PointContext(
             zone: zone,
