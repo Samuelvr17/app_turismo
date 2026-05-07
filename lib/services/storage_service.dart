@@ -162,7 +162,7 @@ class StorageService {
       );
     }
 
-    await _localStorage.saveReport(report: report!);
+    await _localStorage.saveReport(report: report);
     return report;
   }
 

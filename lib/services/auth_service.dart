@@ -61,6 +61,11 @@ class AuthService {
     _isInitialized = true;
   }
 
+  void dispose() {
+    _authSubscription?.cancel();
+    _currentUserNotifier.dispose();
+  }
+
   // ---------------------------------------------------------------------------
   // Login
   // ---------------------------------------------------------------------------

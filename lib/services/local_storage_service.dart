@@ -18,7 +18,7 @@ class LocalStorageService {
   static const String _dangerZonesBoxNamePrefix = 'danger_zones_box';
   static const String _preferencesKey = 'user_preferences';
   static const String _safeRoutesKey = 'safe_routes_cache';
-  static const String _dangerZonesKey = 'danger_zones_cache';
+
   static const String _dangerZonesTimestampKey = 'danger_zones_cache_timestamp';
 
   bool _baseInitialized = false;

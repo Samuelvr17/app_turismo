@@ -329,7 +329,7 @@ class _ReportesPageState extends State<ReportesPage> {
     }
 
     return DropdownButtonFormField<String>(
-      value: _selectedVereda,
+      initialValue: _selectedVereda,
       decoration: const InputDecoration(
         labelText: 'Vereda',
         border: OutlineInputBorder(),
@@ -550,7 +550,7 @@ class _ReportesPageState extends State<ReportesPage> {
     ];
 
     return DropdownButtonFormField<String>(
-      value: _publicFilter ?? 'Todas',
+      initialValue: _publicFilter ?? 'Todas',
       decoration: const InputDecoration(
         labelText: 'Filtrar por vereda',
         border: OutlineInputBorder(),

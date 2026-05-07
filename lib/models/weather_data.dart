@@ -50,7 +50,7 @@ class WeatherData {
       'main': {
         'temp': temperature,
         'humidity': humidity,
-        'feels_like': feels_like,
+        'feels_like': feelsLike,
         'pressure': pressure,
       },
       'weather': [
@@ -68,8 +68,7 @@ class WeatherData {
     };
   }
 
-  // Helper for internal toJson
-  double get feels_like => feelsLike;
+
 
   String get temperatureFormatted => '${temperature.toStringAsFixed(1)}°C';
   String get feelsLikeFormatted => '${feelsLike.toStringAsFixed(1)}°C';
