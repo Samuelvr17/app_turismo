@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 
+import 'danger_zone.dart';
 import 'geo_point.dart';
 
 /// Representa un punto específico de peligro perteneciente a una zona.
@@ -18,6 +19,7 @@ class DangerZonePoint {
     required this.recommendations,
     required this.location,
     this.radius = defaultRadius,
+    this.level,
   });
 
   static const double defaultRadius = 30;
@@ -30,8 +32,21 @@ class DangerZonePoint {
   final String recommendations;
   final GeoPoint location;
   final double radius;
+  final DangerLevel? level;
 
   factory DangerZonePoint.fromJson(Map<String, dynamic> json) {
+    final String? levelValue =
+        (json['danger_level'] as String? ?? json['level'] as String?)
+            ?.toLowerCase();
+    
+    final DangerLevel? level = levelValue == null ? null : switch (levelValue) {
+      'alto riesgo' || 'alta' || 'high' => DangerLevel.high,
+      'movimientos en masa o deslizamientos' || 'massmovement' => DangerLevel.massMovement,
+      'puntos con asistencia o seguimiento técnico' || 'media' || 'medium' || 'monitored' => DangerLevel.monitored,
+      'riesgo bajo' || 'baja' || 'low' => DangerLevel.low,
+      _ => null,
+    };
+
     return DangerZonePoint(
       id: json['id'].toString(),
       dangerZoneId: (json['danger_zone_id'] ?? json['dangerZoneId']).toString(),
@@ -44,6 +59,7 @@ class DangerZonePoint {
         (json['longitude'] as num?)?.toDouble() ?? 0,
       ),
       radius: (json['radius'] as num?)?.toDouble() ?? defaultRadius,
+      level: level,
     );
   }
 
@@ -58,6 +74,16 @@ class DangerZonePoint {
       'latitude': location.latitude,
       'longitude': location.longitude,
       'radius': radius,
+      'danger_level': level != null ? _levelToString(level!) : null,
+    };
+  }
+
+  static String _levelToString(DangerLevel level) {
+    return switch (level) {
+      DangerLevel.high => 'high',
+      DangerLevel.massMovement => 'movimientos en masa o deslizamientos',
+      DangerLevel.monitored => 'puntos con asistencia o seguimiento técnico',
+      DangerLevel.low => 'low',
     };
   }
 

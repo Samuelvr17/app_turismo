@@ -172,36 +172,12 @@ class _ArCameraViewState extends State<ArCameraView> {
       return const <_PointContext>[];
     }
 
-    final GeoPoint userGeoPoint = GeoPoint(userPosition.latitude, userPosition.longitude);
+    final GeoPoint userGeoPoint =
+        GeoPoint(userPosition.latitude, userPosition.longitude);
     final List<_PointContext> contexts = <_PointContext>[];
 
     for (final DangerZone zone in widget.dangerZones) {
-      // 1. Add the zone itself as a point (to show the main zone marker)
-      final double zoneDistance =
-          _arService.calculateDistance(userGeoPoint, zone.center);
-      if (zoneDistance <= radiusInMeters) {
-        final double zoneBearing =
-            _arService.calculateBearing(userGeoPoint, zone.center);
-        contexts.add(
-          _PointContext(
-            zone: zone,
-            point: DangerZonePoint(
-              id: "zone_${zone.id}",
-              dangerZoneId: zone.id,
-              title: zone.title,
-              description: zone.description,
-              precautions: zone.precautions,
-              recommendations: zone.securityRecommendations,
-              location: zone.center,
-              radius: zone.radius,
-            ),
-            distance: zoneDistance,
-            relativeBearing: _relativeBearing(zoneBearing),
-          ),
-        );
-      }
-
-      // 2. Add all sub-points
+      // 1. Add all sub-points (DangerZonePoint)
       for (final DangerZonePoint point in zone.points) {
         final double distance =
             _arService.calculateDistance(userGeoPoint, point.location);
@@ -229,8 +205,9 @@ class _ArCameraViewState extends State<ArCameraView> {
     return contexts;
   }
 
-  Color _zoneColor(DangerZone zone) {
-    switch (zone.level) {
+  Color _getPointColor(DangerZonePoint point, DangerZone zone) {
+    final DangerLevel level = point.level ?? zone.level;
+    switch (level) {
       case DangerLevel.high:
         return Colors.red;
       case DangerLevel.massMovement:
@@ -427,7 +404,7 @@ class _ArCameraViewState extends State<ArCameraView> {
                         key: ValueKey<String>('expanded_${point.point.id}'),
                         pointContext: point,
                         distanceLabel: _formatDistance(point.distance),
-                        zoneColor: _zoneColor(point.zone),
+                        zoneColor: _getPointColor(point.point, point.zone),
                         onViewZonePoints: () =>
                             _showZonePoints(point.zone, userPosition),
                         onCollapse: () =>
@@ -437,7 +414,7 @@ class _ArCameraViewState extends State<ArCameraView> {
                         key: ValueKey<String>('icon_${point.point.id}'),
                         pointContext: point,
                         distanceLabel: _formatDistance(point.distance),
-                        zoneColor: _zoneColor(point.zone),
+                        zoneColor: _getPointColor(point.point, point.zone),
                         additionalPointsInFov: pointsInFov
                             .where((p) => p.point.id != point.point.id)
                             .length,
@@ -528,7 +505,7 @@ class _ArCameraViewState extends State<ArCameraView> {
 
                             final _PointGroup group = compactGroups[index];
                             final _PointContext rep = group.representative;
-                            final Color zoneCol = _zoneColor(rep.zone);
+                            final Color zoneCol = _getPointColor(rep.point, rep.zone);
                             final int additionalCount = group.points.length - 1;
 
                             return Padding(
@@ -673,7 +650,7 @@ class _ArCameraViewState extends State<ArCameraView> {
                             angle: pointData.relativeBearing * math.pi / 180,
                             child: Icon(
                               Icons.navigation_rounded,
-                              color: _zoneColor(zone),
+                              color: _getPointColor(pointData.point, zone),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -771,7 +748,7 @@ class _ArCameraViewState extends State<ArCameraView> {
                                       pointData.relativeBearing * math.pi / 180,
                                   child: Icon(
                                     Icons.navigation_rounded,
-                                    color: _zoneColor(pointData.zone),
+                                    color: _getPointColor(pointData.point, pointData.zone),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
